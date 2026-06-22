@@ -43,9 +43,58 @@ function ConfettiBurst() {
 import { useRouter } from "next/navigation";
 import FluidGlassButton from "./FluidGlassButton";
 import FeedbackModal from "./FeedbackModal";
-import { putMemory, listMemories, type FridgeMemory, type CardText } from "./fridgeDB";
+import { putMemory, listMemories, type FridgeMemory } from "./fridgeDB";
 
 type Stage = "landing" | "camera" | "preview" | "printing" | "result";
+
+const FONT_OPTIONS = [
+  { key: "patrick", label: "Handwriting", css: "var(--font-patrick-hand), 'Patrick Hand', cursive", canvas: "Patrick Hand" },
+  { key: "caveat", label: "Casual", css: "var(--font-caveat), 'Caveat', cursive", canvas: "Caveat" },
+  { key: "marker", label: "Marker", css: "var(--font-permanent-marker), 'Permanent Marker', cursive", canvas: "Permanent Marker" },
+  { key: "indie", label: "Sketchy", css: "var(--font-indie-flower), 'Indie Flower', cursive", canvas: "Indie Flower" },
+  { key: "shadows", label: "Dreamy", css: "var(--font-shadows), 'Shadows Into Light', cursive", canvas: "Shadows Into Light" },
+  { key: "satisfy", label: "Fancy", css: "var(--font-satisfy), 'Satisfy', cursive", canvas: "Satisfy" },
+];
+
+const SIZE_OPTIONS = [
+  { key: "sm", label: "S", px: 16, canvas: 28 },
+  { key: "md", label: "M", px: 22, canvas: 42 },
+  { key: "lg", label: "L", px: 28, canvas: 56 },
+  { key: "xl", label: "XL", px: 34, canvas: 68 },
+];
+
+const FRAME_COLORS = [
+  { key: "classic", label: "Classic", color: "#FDFDFB", text: "#333" },
+  { key: "black", label: "Dark", color: "#1a1a1a", text: "#eee" },
+  { key: "cream", label: "Cream", color: "#F5ECDA", text: "#5a4a3a" },
+  { key: "pink", label: "Blush", color: "#FADCE6", text: "#7a3a4a" },
+  { key: "mint", label: "Mint", color: "#D4EDDA", text: "#2d5a3a" },
+  { key: "sky", label: "Sky", color: "#D6EAF8", text: "#2a4a6a" },
+  { key: "lavender", label: "Lavender", color: "#E8DAEF", text: "#5a3a6a" },
+  { key: "sunset", label: "Sunset", color: "#FDEBD0", text: "#6a4a2a" },
+];
+
+function resolveFrameColor(key: string) {
+  const preset = FRAME_COLORS.find(f => f.key === key);
+  if (preset) return preset;
+  const isLight = (() => {
+    const hex = key.replace("#", "");
+    if (hex.length !== 6) return true;
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    return (r * 299 + g * 587 + b * 114) / 1000 > 140;
+  })();
+  return { key, label: "Custom", color: key, text: isLight ? "#333" : "#eee" };
+}
+
+const FRAME_SIZES = [
+  { key: "auto", label: "Auto", ratio: "auto", bottomPad: "1%", canvasBottom: 0.16 },
+  { key: "compact", label: "Compact", ratio: "27 / 22", bottomPad: "1%", canvasBottom: 0.14 },
+  { key: "classic", label: "Classic", ratio: "27 / 24", bottomPad: "1%", canvasBottom: 0.18 },
+  { key: "wide", label: "Wide", ratio: "30 / 22", bottomPad: "1%", canvasBottom: 0.14 },
+  { key: "square", label: "Square", ratio: "1 / 1", bottomPad: "1%", canvasBottom: 0.15 },
+];
 
 const SCENE_IMGS = [
   "/Sea_and_sun-removebg-preview.png",
@@ -75,11 +124,28 @@ export default function Home() {
   const [boothCapturing, setBoothCapturing] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
-  const [cardTexts, setCardTexts] = useState<
-    Array<{ id: number; x: number; y: number; text: string; editing: boolean }>
-  >([]);
+  const [caption, setCaption] = useState("");
+  const [captionColor, setCaptionColor] = useState("#333");
+  const [captionFont, setCaptionFont] = useState("patrick");
+  const [captionSize, setCaptionSize] = useState("md");
+  const [captionEditing, setCaptionEditing] = useState(false);
+  const [frameColor, setFrameColor] = useState("classic");
+  const [frameSize, setFrameSize] = useState("auto");
+  const [imageAspect, setImageAspect] = useState(5640 / 3760);
   const cardRef = useRef<HTMLDivElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    if (!capturedImage) return;
+    const img = new Image();
+    img.onload = () => {
+      if (img.width > 0 && img.height > 0) {
+        setImageAspect(img.width / img.height);
+      }
+    };
+    img.src = capturedImage;
+  }, [capturedImage]);
 
   useEffect(() => {
     try {
@@ -98,7 +164,7 @@ export default function Home() {
   }, []);
 
   const compositeStrip = useCallback((photos: string[]): Promise<string> => {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const pad = 14;
       const gap = 8;
       const imgW = 400;
@@ -113,9 +179,11 @@ export default function Home() {
       ctx.fillStyle = "#FDFDFB";
       ctx.fillRect(0, 0, stripW, stripH);
       let loaded = 0;
+      let failed = false;
       const imgs = photos.map((src) => { const im = new Image(); im.src = src; return im; });
       imgs.forEach((img) => {
         img.onload = () => {
+          if (failed) return;
           loaded++;
           if (loaded === imgs.length) {
             imgs.forEach((im, j) => {
@@ -125,44 +193,59 @@ export default function Home() {
             resolve(cvs.toDataURL("image/jpeg", 0.92));
           }
         };
+        img.onerror = () => {
+          if (failed) return;
+          failed = true;
+          reject(new Error("Failed to load strip image"));
+        };
       });
     });
   }, []);
 
+  const [savingToFridge, setSavingToFridge] = useState(false);
   const handleAddToFridge = useCallback(async () => {
-    let imageToSave: string | null = capturedImage;
-    if (boothPhotos.length > 0) {
-      imageToSave = await compositeStrip(boothPhotos);
+    if (savingToFridge) return;
+    setSavingToFridge(true);
+    try {
+      let imageToSave: string | null = capturedImage;
+      if (boothPhotos.length > 0) {
+        imageToSave = await compositeStrip(boothPhotos);
+      }
+      if (!imageToSave) { setSavingToFridge(false); return; }
+      setFlying(true);
+      const preset =
+        typeof window !== "undefined"
+          ? parseInt(localStorage.getItem("fridge_preset") ?? "0", 10) || 0
+          : 0;
+      const memory: FridgeMemory = {
+        id: `${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        image: imageToSave,
+        date: new Date().toISOString(),
+        x: 40 + Math.random() * 600,
+        y: 40 + Math.random() * 400,
+        rotate: (Math.random() - 0.5) * 14,
+        fridge: preset,
+        caption: caption.trim() || undefined,
+        captionColor: caption.trim() ? captionColor : undefined,
+        captionFont: caption.trim() ? captionFont : undefined,
+        captionSize: caption.trim() ? captionSize : undefined,
+        frameColor: frameColor || undefined,
+        frameSize: frameSize || undefined,
+      };
+      await putMemory(memory);
+      await new Promise((r) => setTimeout(r, 900));
+      setFlying(false);
+      setCapturedImage(null);
+      setBoothPhotos([]);
+      setBoothMode(0);
+      setCaption("");
+      setStage("landing");
+      router.push("/fridge");
+    } catch {
+      setFlying(false);
+      setSavingToFridge(false);
     }
-    if (!imageToSave) return;
-    setFlying(true);
-    const preset =
-      typeof window !== "undefined"
-        ? parseInt(localStorage.getItem("fridge_preset") ?? "0", 10) || 0
-        : 0;
-    const savedTexts: CardText[] = cardTexts
-      .filter((t) => t.text.trim())
-      .map(({ id, x, y, text }) => ({ id, x, y, text }));
-    const memory: FridgeMemory = {
-      id: `${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      image: imageToSave,
-      date: new Date().toISOString(),
-      x: 40 + Math.random() * 600,
-      y: 40 + Math.random() * 400,
-      rotate: (Math.random() - 0.5) * 14,
-      fridge: preset,
-      texts: savedTexts.length > 0 ? savedTexts : undefined,
-    };
-    await putMemory(memory);
-    await new Promise((r) => setTimeout(r, 900));
-    setFlying(false);
-    setCapturedImage(null);
-    setBoothPhotos([]);
-    setBoothMode(0);
-    setCardTexts([]);
-    setStage("landing");
-    router.push("/fridge");
-  }, [capturedImage, boothPhotos, cardTexts, router, compositeStrip]);
+  }, [capturedImage, boothPhotos, caption, router, compositeStrip, savingToFridge]);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -172,8 +255,14 @@ export default function Home() {
     streamRef.current = null;
   }, []);
 
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const startCamera = useCallback(async () => {
     stopCamera();
+    setCameraError(null);
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError("Camera not available. Make sure you're using HTTPS.");
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode, width: { ideal: 1280 }, height: { ideal: 1280 } },
@@ -183,8 +272,15 @@ export default function Home() {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
-    } catch {
-      alert("Camera access denied. Please allow camera permissions.");
+    } catch (err: unknown) {
+      const name = err instanceof DOMException ? err.name : "";
+      if (name === "NotAllowedError") {
+        setCameraError("Camera access denied. Please allow camera permissions in your browser settings.");
+      } else if (name === "NotReadableError") {
+        setCameraError("Camera is in use by another app. Close it and try again.");
+      } else {
+        setCameraError("Could not access camera. Please try again.");
+      }
     }
   }, [facingMode, stopCamera]);
 
@@ -215,11 +311,13 @@ export default function Home() {
     canvas.width = Math.round(sw);
     canvas.height = Math.round(sh);
     const ctx = canvas.getContext("2d")!;
+    ctx.save();
     if (facingMode === "user") {
       ctx.translate(canvas.width, 0);
       ctx.scale(-1, 1);
     }
     ctx.drawImage(video, ox, oy, sw, sh, 0, 0, canvas.width, canvas.height);
+    ctx.restore();
     setCapturedImage(canvas.toDataURL("image/jpeg", 0.92));
     stopCamera();
     setStage("preview");
@@ -274,6 +372,9 @@ export default function Home() {
               stopCamera();
               setStage("preview");
             }
+          } else {
+            setBoothCapturing(false);
+            setCameraError("Lost camera feed during capture. Please try again.");
           }
         }
       }, 1000);
@@ -286,6 +387,27 @@ export default function Home() {
     setBoothPhotos([]);
     setBoothMode(0);
     setStage("camera");
+  };
+
+  const handleGalleryUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      setCapturedImage(dataUrl);
+      setBoothPhotos([]);
+      setBoothMode(0);
+      setCaption("");
+      setCaptionColor("#333");
+      setCaptionFont("patrick");
+      setCaptionSize("md");
+      setFrameColor("classic");
+      setFrameSize("auto");
+      setStage("result");
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
   };
 
   const handleContinue = () => {
@@ -313,35 +435,64 @@ export default function Home() {
     }
     if (!capturedImage) return;
     const canvas = document.createElement("canvas");
-    const cardW = 900;
-    const cardH = Math.round(cardW * (20 / 27));
-    const topPad = Math.round(cardW * 0.03);
-    const sidePad = Math.round(cardW * 0.03);
+    const cardW = 1800;
+    const sidePad = Math.round(cardW * 0.055);
+    const topPad = Math.round(cardW * 0.055);
+    const frameSizeCfg = FRAME_SIZES.find(f => f.key === frameSize);
+    const bottomPad = Math.round(cardW * (frameSizeCfg?.canvasBottom ?? 0.18));
     const imgW = cardW - sidePad * 2;
-    const imgH = Math.round(imgW * (3760 / 5640));
-    canvas.width = cardW;
-    canvas.height = cardH;
-    const ctx = canvas.getContext("2d")!;
-    ctx.fillStyle = "#FDFDFB";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const fColor = resolveFrameColor(frameColor).color;
     const img = new Image();
     img.onload = () => {
+      const isAuto = frameSize === "auto";
+      const imgH = isAuto
+        ? Math.round(imgW / (img.width / img.height))
+        : Math.round(imgW * (3760 / 5640));
+      const cardH = topPad + imgH + bottomPad;
+      canvas.width = cardW;
+      canvas.height = cardH;
+      const ctx = canvas.getContext("2d")!;
+      ctx.fillStyle = fColor;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
       const srcAspect = img.width / img.height;
       const targetAspect = imgW / imgH;
       let sx = 0, sy = 0, sw = img.width, sh = img.height;
-      if (srcAspect > targetAspect) {
+      if (!isAuto && srcAspect > targetAspect) {
         sw = img.height * targetAspect;
         sx = (img.width - sw) / 2;
-      } else {
+      } else if (!isAuto) {
         sh = img.width / targetAspect;
         sy = (img.height - sh) / 2;
       }
       ctx.drawImage(img, sx, sy, sw, sh, sidePad, topPad, imgW, imgH);
+      if (caption.trim()) {
+        ctx.save();
+        const canvasFont = FONT_OPTIONS.find(f => f.key === captionFont)?.canvas ?? "Patrick Hand";
+        const canvasSize = (SIZE_OPTIONS.find(s => s.key === captionSize)?.canvas ?? 42) * 2;
+        ctx.font = `${canvasSize}px '${canvasFont}', cursive`;
+        ctx.fillStyle = captionColor || resolveFrameColor(frameColor).text;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        const captionY = topPad + imgH + bottomPad * 0.45;
+        ctx.fillText(caption, cardW / 2, captionY, imgW - 40);
+        ctx.restore();
+      }
+      const today = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      ctx.save();
+      const resolved = resolveFrameColor(frameColor);
+      ctx.font = "48px 'Patrick Hand', cursive";
+      ctx.fillStyle = resolved.text === "#eee" ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.25)";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      const dateY = topPad + imgH + bottomPad * (caption.trim() ? 0.78 : 0.5);
+      ctx.fillText(today, cardW / 2, dateY);
+      ctx.restore();
       const link = document.createElement("a");
-      link.download = `oh-snap-${Date.now()}.jpg`;
-      link.href = canvas.toDataURL("image/jpeg", 0.95);
+      link.download = `memoryprint-${Date.now()}.png`;
+      link.href = canvas.toDataURL("image/png");
       link.click();
     };
+    img.onerror = () => {};
     img.src = capturedImage;
   };
 
@@ -375,7 +526,7 @@ export default function Home() {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "16px 28px",
+          padding: "12px clamp(12px, 3vw, 28px)",
           backdropFilter: lightMode ? "none" : "blur(10px)",
           WebkitBackdropFilter: lightMode ? "none" : "blur(10px)",
           background: lightMode ? "#f5f0eb" : "rgba(0,0,0,0.35)",
@@ -741,10 +892,10 @@ export default function Home() {
                     style={{
                       fontFamily:
                         '"GT Walsheim Framer Regular", "GT Walsheim Framer Regular Placeholder", sans-serif',
-                      fontSize: "51px",
+                      fontSize: "clamp(32px, 8vw, 51px)",
                       fontWeight: 500,
-                      letterSpacing: "-2.16px",
-                      lineHeight: "54px",
+                      letterSpacing: "-1.5px",
+                      lineHeight: 1.1,
                       textAlign: "center",
                       color: lightMode ? "#1a1a1a" : "rgb(255, 255, 255)",
                       margin: 0,
@@ -927,11 +1078,45 @@ export default function Home() {
               </div>
 
               {/* CTA — Fluid Glass Button */}
-              <div className="hero-cta" style={{ zIndex: 10, marginTop: "20px" }}>
+              <div className="hero-cta" style={{ zIndex: 10, marginTop: "20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
                 <FluidGlassButton
                   text="Take a Snapshot"
                   onClick={() => setStage("camera")}
                 />
+                <input
+                  ref={galleryInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleGalleryUpload}
+                  style={{ display: "none" }}
+                />
+                <button
+                  onClick={() => galleryInputRef.current?.click()}
+                  style={{
+                    background: "transparent",
+                    border: "1px solid rgba(255,255,255,0.18)",
+                    borderRadius: 999,
+                    padding: "10px 24px",
+                    color: "rgba(255,255,255,0.6)",
+                    fontSize: 14,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    transition: "all 200ms ease",
+                    backdropFilter: "blur(6px)",
+                    WebkitBackdropFilter: "blur(6px)",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.35)"; e.currentTarget.style.color = "rgba(255,255,255,0.85)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.18)"; e.currentTarget.style.color = "rgba(255,255,255,0.6)"; }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+                    <circle cx="9" cy="9" r="2" />
+                    <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+                  </svg>
+                  Upload from Gallery
+                </button>
               </div>
 
             </div>
@@ -949,6 +1134,27 @@ export default function Home() {
             transition={{ duration: 0.4 }}
           >
             <div className="relative w-full max-w-lg aspect-square rounded-xl overflow-hidden bg-[#08080a] border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.6)]">
+              {cameraError ? (
+                <div className="w-full h-full flex flex-col items-center justify-center gap-4 p-6 text-center">
+                  <p style={{ fontFamily: "var(--font-patrick-hand)", fontSize: 16, color: "rgba(255,255,255,0.6)", lineHeight: 1.6 }}>
+                    {cameraError}
+                  </p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => { setCameraError(null); startCamera(); }}
+                      style={{ padding: "8px 18px", borderRadius: 999, fontSize: 13, background: "#fff", color: "#0a0a0a", border: "none", cursor: "pointer" }}
+                    >
+                      Try again
+                    </button>
+                    <button
+                      onClick={() => { setCameraError(null); setStage("landing"); }}
+                      style={{ padding: "8px 18px", borderRadius: 999, fontSize: 13, background: "transparent", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.2)", cursor: "pointer" }}
+                    >
+                      Go back
+                    </button>
+                  </div>
+                </div>
+              ) : (
               <video
                 ref={videoRef}
                 autoPlay
@@ -956,6 +1162,7 @@ export default function Home() {
                 muted
                 className="w-full h-full object-cover"
               />
+              )}
               {/* Viewfinder corners */}
               <div className="absolute inset-4 pointer-events-none">
                 <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-white/40 rounded-tl" />
@@ -1149,6 +1356,8 @@ export default function Home() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3 }}
+            onClick={() => setStage("result")}
+            style={{ cursor: "pointer" }}
           >
             <div
               style={{
@@ -1262,6 +1471,18 @@ export default function Home() {
             >
               Developing your photo...
             </motion.p>
+            <motion.p
+              style={{
+                color: "rgba(255, 255, 255, 0.2)",
+                fontSize: "12px",
+                marginTop: "4px",
+              }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 2.5 }}
+            >
+              tap to skip
+            </motion.p>
           </motion.div>
         )}
 
@@ -1277,7 +1498,7 @@ export default function Home() {
             {boothPhotos.length > 0 ? (
               <motion.div
                 className="result-polaroid"
-                drag
+                drag={!captionEditing}
                 dragMomentum={true}
                 dragElastic={0.1}
                 whileDrag={{ scale: 1.05, cursor: "grabbing", rotate: 0 }}
@@ -1288,30 +1509,19 @@ export default function Home() {
                   boxShadow:
                     "rgba(0, 0, 0, 0.28) 0px 20px 45px 0px, rgba(0, 0, 0, 0.12) 0px 4px 10px 0px, inset 0 0 0 1px rgba(0, 0, 0, 0.04)",
                   padding: "10px 10px 36px",
-                  cursor: "grab",
+                  cursor: captionEditing ? "default" : "grab",
                   display: "flex",
                   flexDirection: "column",
                   gap: 6,
                   position: "relative",
                 }}
                 initial={{ rotate: -2 }}
-                animate={{ rotate: 1 }}
-                transition={{
-                  duration: 3,
-                  repeat: Infinity,
-                  repeatType: "reverse",
-                  ease: "easeInOut",
-                }}
+                animate={{ rotate: captionEditing ? 0 : 1 }}
+                transition={captionEditing
+                  ? { duration: 0.3 }
+                  : { duration: 3, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" }
+                }
                 ref={cardRef}
-                onClick={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const x = ((e.clientX - rect.left) / rect.width) * 100;
-                  const y = ((e.clientY - rect.top) / rect.height) * 100;
-                  setCardTexts((prev) => [
-                    ...prev,
-                    { id: Date.now(), x, y, text: "", editing: true },
-                  ]);
-                }}
               >
                 {boothPhotos.map((src, i) => (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -1323,159 +1533,102 @@ export default function Home() {
                   />
                 ))}
 
-                {/* Editable text annotations on strip */}
-                {cardTexts.map((t) => (
-                  <motion.div
-                    key={t.id}
-                    drag={!t.editing}
-                    dragMomentum={false}
-                    dragElastic={0}
-                    dragConstraints={cardRef}
-                    onDragEnd={(_, info) => {
-                      if (!cardRef.current) return;
-                      const rect = cardRef.current.getBoundingClientRect();
-                      const dx = (info.offset.x / rect.width) * 100;
-                      const dy = (info.offset.y / rect.height) * 100;
-                      setCardTexts((prev) =>
-                        prev.map((p) =>
-                          p.id === t.id ? { ...p, x: p.x + dx, y: p.y + dy } : p
-                        )
-                      );
-                    }}
-                    style={{
-                      position: "absolute",
-                      left: `${t.x}%`,
-                      top: `${t.y}%`,
-                      x: "-50%",
-                      y: "-50%",
-                      zIndex: 20,
-                      cursor: t.editing ? "text" : "grab",
-                    }}
-                    whileDrag={{ scale: 1.1, cursor: "grabbing" }}
-                    onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                  >
-                    {t.editing ? (
-                      <input
-                        autoFocus
-                        value={t.text}
-                        onChange={(e) =>
-                          setCardTexts((prev) =>
-                            prev.map((p) =>
-                              p.id === t.id ? { ...p, text: e.target.value } : p
-                            )
-                          )
-                        }
-                        onBlur={() =>
-                          setCardTexts((prev) =>
-                            prev
-                              .map((p) =>
-                                p.id === t.id ? { ...p, editing: false } : p
-                              )
-                              .filter((p) => p.text.trim() !== "")
-                          )
-                        }
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") e.currentTarget.blur();
-                        }}
-                        placeholder="type here..."
-                        style={{
-                          fontFamily: "var(--font-patrick-hand), 'Patrick Hand', cursive",
-                          fontSize: 16,
-                          color: "#333",
-                          background: "rgba(255,255,255,0.7)",
-                          border: "none",
-                          borderBottom: "1.5px dashed rgba(0,0,0,0.3)",
-                          outline: "none",
-                          textAlign: "center",
-                          minWidth: 80,
-                          padding: "2px 6px",
-                          borderRadius: 4,
-                        }}
-                      />
-                    ) : (
-                      <span
-                        onDoubleClick={(e) => {
-                          e.stopPropagation();
-                          setCardTexts((prev) =>
-                            prev.map((p) =>
-                              p.id === t.id ? { ...p, editing: true } : p
-                            )
-                          );
-                        }}
-                        style={{
-                          fontFamily: "var(--font-patrick-hand), 'Patrick Hand', cursive",
-                          fontSize: 16,
-                          color: "#fff",
-                          textShadow: "0 1px 4px rgba(0,0,0,0.6)",
-                          cursor: "grab",
-                          whiteSpace: "nowrap",
-                          userSelect: "none",
-                        }}
-                      >
-                        {t.text}
-                      </span>
-                    )}
-                  </motion.div>
-                ))}
-
-                {cardTexts.length === 0 && (
-                  <p style={{
-                    fontFamily: "var(--font-patrick-hand), 'Patrick Hand', sans-serif",
-                    textAlign: "center",
-                    color: "rgba(0,0,0,0.25)",
-                    fontSize: 12,
-                    margin: "2px 0 0",
-                    pointerEvents: "none",
-                  }}>
-                    tap to write
-                  </p>
-                )}
+                {/* Caption area */}
+                <div
+                  style={{
+                    padding: "6px 8px 2px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "text",
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCaptionEditing(true);
+                  }}
+                >
+                  {captionEditing ? (
+                    <input
+                      autoFocus
+                      value={caption}
+                      onChange={(e) => setCaption(e.target.value)}
+                      onBlur={() => setCaptionEditing(false)}
+                      onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                      maxLength={40}
+                      placeholder="write a caption..."
+                      style={{
+                        fontFamily: FONT_OPTIONS.find(f => f.key === captionFont)?.css,
+                        fontSize: Math.min(SIZE_OPTIONS.find(s => s.key === captionSize)?.px ?? 18, 22),
+                        color: captionColor,
+                        background: "transparent",
+                        border: "none",
+                        borderBottom: "1.5px dashed rgba(0,0,0,0.2)",
+                        outline: "none",
+                        textAlign: "center",
+                        width: "100%",
+                        padding: "2px 4px",
+                      }}
+                    />
+                  ) : (
+                    <span
+                      style={{
+                        fontFamily: FONT_OPTIONS.find(f => f.key === captionFont)?.css,
+                        fontSize: Math.min(SIZE_OPTIONS.find(s => s.key === captionSize)?.px ?? 18, 22),
+                        color: caption ? captionColor : "rgba(0,0,0,0.25)",
+                        textAlign: "center",
+                        width: "100%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 5,
+                        minHeight: 24,
+                      }}
+                    >
+                      {!caption && (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
+                          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                          <path d="m15 5 4 4" />
+                        </svg>
+                      )}
+                      {caption || "write a caption..."}
+                    </span>
+                  )}
+                </div>
               </motion.div>
             ) : (
             <motion.div
               className="result-polaroid"
-              drag
+              drag={!captionEditing}
               dragMomentum={true}
               dragElastic={0.1}
               whileDrag={{ scale: 1.05, cursor: "grabbing", rotate: 0 }}
               style={{
-                width: "clamp(260px, 38vw, 340px)",
-                aspectRatio: "27 / 20",
-                backgroundColor: "rgb(253, 253, 251)",
+                width: "clamp(320px, 50vw, 440px)",
+                aspectRatio: frameSize === "auto" ? undefined : (FRAME_SIZES.find(f => f.key === frameSize)?.ratio ?? "27 / 24"),
+                backgroundColor: resolveFrameColor(frameColor).color,
                 borderRadius: "4px",
                 boxShadow:
                   "rgba(0, 0, 0, 0.28) 0px 20px 45px 0px, rgba(0, 0, 0, 0.12) 0px 4px 10px 0px, inset 0 0 0 1px rgba(0, 0, 0, 0.04)",
-                padding: "3% 3% 0 3%",
-                cursor: "grab",
+                padding: `1.5% 1.5% ${FRAME_SIZES.find(f => f.key === frameSize)?.bottomPad ?? "1%"} 1.5%`,
+                cursor: captionEditing ? "default" : "grab",
                 display: "flex",
                 flexDirection: "column",
                 position: "relative",
               }}
               initial={{ rotate: -2 }}
-              animate={{ rotate: 1 }}
-              transition={{
-                duration: 3,
-                repeat: Infinity,
-                repeatType: "reverse",
-                ease: "easeInOut",
-              }}
+              animate={{ rotate: captionEditing ? 0 : 1 }}
+              transition={captionEditing
+                ? { duration: 0.3 }
+                : { duration: 3, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" }
+              }
               ref={cardRef}
-              onClick={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const x = ((e.clientX - rect.left) / rect.width) * 100;
-                const y = ((e.clientY - rect.top) / rect.height) * 100;
-                setCardTexts((prev) => [
-                  ...prev,
-                  { id: Date.now(), x, y, text: "", editing: true },
-                ]);
-              }}
             >
               <div
                 style={{
                   backgroundColor: "rgb(8, 8, 10)",
                   borderRadius: "1px",
                   width: "100%",
-                  aspectRatio: "5640 / 3760",
+                  aspectRatio: frameSize === "auto" ? undefined : "5640 / 3760",
                   overflow: "hidden",
                 }}
               >
@@ -1492,130 +1645,271 @@ export default function Home() {
                 />
               </div>
 
-              {/* Editable + draggable text annotations on the card */}
-              {cardTexts.map((t) => (
-                <motion.div
-                  key={t.id}
-                  drag={!t.editing}
-                  dragMomentum={false}
-                  dragElastic={0}
-                  dragConstraints={cardRef}
-                  onDragEnd={(_, info) => {
-                    if (!cardRef.current) return;
-                    const rect = cardRef.current.getBoundingClientRect();
-                    const dx = (info.offset.x / rect.width) * 100;
-                    const dy = (info.offset.y / rect.height) * 100;
-                    setCardTexts((prev) =>
-                      prev.map((p) =>
-                        p.id === t.id
-                          ? { ...p, x: p.x + dx, y: p.y + dy }
-                          : p
-                      )
-                    );
-                  }}
+              {/* Caption area — like writing on a real Polaroid */}
+              <div
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "4px 8px",
+                  cursor: "text",
+                  minHeight: 36,
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCaptionEditing(true);
+                }}
+              >
+                {(() => {
+                  const isDark = resolveFrameColor(frameColor).text !== "#333";
+                  const hintColor = isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.2)";
+                  const dashColor = isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)";
+                  return captionEditing ? (
+                  <input
+                    autoFocus
+                    value={caption}
+                    onChange={(e) => setCaption(e.target.value)}
+                    onBlur={() => setCaptionEditing(false)}
+                    onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                    maxLength={40}
+                    placeholder="write a caption..."
+                    style={{
+                      fontFamily: FONT_OPTIONS.find(f => f.key === captionFont)?.css,
+                      fontSize: SIZE_OPTIONS.find(s => s.key === captionSize)?.px ?? 22,
+                      color: captionColor,
+                      background: "transparent",
+                      border: "none",
+                      borderBottom: `1.5px dashed ${dashColor}`,
+                      outline: "none",
+                      textAlign: "center",
+                      width: "100%",
+                      padding: "2px 4px",
+                    }}
+                  />
+                ) : (
+                  <span
+                    style={{
+                      fontFamily: FONT_OPTIONS.find(f => f.key === captionFont)?.css,
+                      fontSize: SIZE_OPTIONS.find(s => s.key === captionSize)?.px ?? 22,
+                      color: caption ? captionColor : hintColor,
+                      textAlign: "center",
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
+                      minHeight: 28,
+                    }}
+                  >
+                    {!caption && (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
+                        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                        <path d="m15 5 4 4" />
+                      </svg>
+                    )}
+                    {caption || "write a caption..."}
+                  </span>
+                );
+                })()}
+              </div>
+            </motion.div>
+            )}
+
+            {/* Frame options */}
+            <div style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+              alignItems: "center",
+              background: "rgba(255,255,255,0.06)",
+              backdropFilter: "blur(10px)",
+              WebkitBackdropFilter: "blur(10px)",
+              borderRadius: 14,
+              padding: "10px 14px",
+              border: "1px solid rgba(255,255,255,0.08)",
+            }}>
+              {/* Frame colors */}
+              <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", justifyContent: "center" }}>
+                {FRAME_COLORS.map((f) => (
+                  <button
+                    key={f.key}
+                    onClick={() => setFrameColor(f.key)}
+                    title={f.label}
+                    style={{
+                      width: frameColor === f.key ? 28 : 22,
+                      height: frameColor === f.key ? 28 : 22,
+                      borderRadius: 6,
+                      backgroundColor: f.color,
+                      border: frameColor === f.key
+                        ? "2.5px solid rgba(255,255,255,0.9)"
+                        : `1.5px solid ${f.key === "classic" ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.15)"}`,
+                      cursor: "pointer",
+                      transition: "all 150ms ease",
+                      boxShadow: frameColor === f.key ? "0 0 8px rgba(255,255,255,0.3)" : "inset 0 0 0 1px rgba(0,0,0,0.05)",
+                    }}
+                  />
+                ))}
+                <label
+                  title="Pick any color"
                   style={{
-                    position: "absolute",
-                    left: `${t.x}%`,
-                    top: `${t.y}%`,
-                    x: "-50%",
-                    y: "-50%",
-                    zIndex: 20,
-                    cursor: t.editing ? "text" : "grab",
+                    width: !FRAME_COLORS.some(f => f.key === frameColor) ? 28 : 22,
+                    height: !FRAME_COLORS.some(f => f.key === frameColor) ? 28 : 22,
+                    borderRadius: 6,
+                    cursor: "pointer",
+                    position: "relative",
+                    overflow: "hidden",
+                    border: !FRAME_COLORS.some(f => f.key === frameColor)
+                      ? "2.5px solid rgba(255,255,255,0.9)"
+                      : "1.5px solid rgba(255,255,255,0.25)",
+                    background: !FRAME_COLORS.some(f => f.key === frameColor)
+                      ? resolveFrameColor(frameColor).color
+                      : "conic-gradient(from 0deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)",
+                    boxShadow: !FRAME_COLORS.some(f => f.key === frameColor) ? "0 0 8px rgba(255,255,255,0.3)" : "none",
+                    transition: "all 150ms ease",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                   }}
-                  whileDrag={{ scale: 1.1, cursor: "grabbing" }}
-                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
                 >
-                  {t.editing ? (
-                    <input
-                      autoFocus
-                      value={t.text}
-                      onChange={(e) =>
-                        setCardTexts((prev) =>
-                          prev.map((p) =>
-                            p.id === t.id ? { ...p, text: e.target.value } : p
-                          )
-                        )
-                      }
-                      onBlur={() =>
-                        setCardTexts((prev) =>
-                          prev
-                            .map((p) =>
-                              p.id === t.id ? { ...p, editing: false } : p
-                            )
-                            .filter((p) => p.text.trim() !== "")
-                        )
-                      }
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") e.currentTarget.blur();
-                      }}
-                      placeholder="type here..."
+                  <input
+                    type="color"
+                    value={resolveFrameColor(frameColor).color}
+                    onChange={(e) => setFrameColor(e.target.value)}
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      opacity: 0,
+                      width: "100%",
+                      height: "100%",
+                      cursor: "pointer",
+                      border: "none",
+                      padding: 0,
+                    }}
+                  />
+                </label>
+              </div>
+
+              {/* Frame sizes */}
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                {FRAME_SIZES.map((f) => (
+                  <button
+                    key={f.key}
+                    onClick={() => setFrameSize(f.key)}
+                    style={{
+                      fontSize: 12,
+                      padding: "4px 10px",
+                      borderRadius: 16,
+                      border: frameSize === f.key ? "1.5px solid rgba(255,255,255,0.8)" : "1px solid rgba(255,255,255,0.12)",
+                      background: frameSize === f.key ? "rgba(255,255,255,0.12)" : "transparent",
+                      color: frameSize === f.key ? "#fff" : "rgba(255,255,255,0.45)",
+                      cursor: "pointer",
+                      transition: "all 150ms ease",
+                    }}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Caption style toolbar — only shows when caption has text */}
+            {(caption || captionEditing) && (
+              <motion.div
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
+                  alignItems: "center",
+                  background: "rgba(255,255,255,0.08)",
+                  backdropFilter: "blur(12px)",
+                  WebkitBackdropFilter: "blur(12px)",
+                  borderRadius: 16,
+                  padding: "12px 16px",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                }}
+              >
+                {/* Colors */}
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  {["#333", "#1a6dd4", "#c0392b", "#27ae60", "#8e44ad", "#e67e22"].map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => setCaptionColor(c)}
                       style={{
-                        fontFamily:
-                          "var(--font-patrick-hand), 'Patrick Hand', cursive",
-                        fontSize: 16,
-                        color: "#333",
-                        background: "rgba(255,255,255,0.7)",
-                        border: "none",
-                        borderBottom: "1.5px dashed rgba(0,0,0,0.3)",
-                        outline: "none",
-                        textAlign: "center",
-                        minWidth: 80,
-                        padding: "2px 6px",
-                        borderRadius: 4,
+                        width: captionColor === c ? 24 : 18,
+                        height: captionColor === c ? 24 : 18,
+                        borderRadius: "50%",
+                        backgroundColor: c,
+                        border: captionColor === c ? "2.5px solid rgba(255,255,255,0.9)" : "2px solid rgba(255,255,255,0.25)",
+                        cursor: "pointer",
+                        transition: "all 150ms ease",
+                        boxShadow: captionColor === c ? "0 0 6px rgba(255,255,255,0.3)" : "none",
                       }}
                     />
-                  ) : (
-                    <span
-                      onDoubleClick={(e) => {
-                        e.stopPropagation();
-                        setCardTexts((prev) =>
-                          prev.map((p) =>
-                            p.id === t.id ? { ...p, editing: true } : p
-                          )
-                        );
-                      }}
+                  ))}
+                </div>
+
+                {/* Fonts */}
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
+                  {FONT_OPTIONS.map((f) => (
+                    <button
+                      key={f.key}
+                      onClick={() => setCaptionFont(f.key)}
                       style={{
-                        fontFamily:
-                          "var(--font-patrick-hand), 'Patrick Hand', cursive",
-                        fontSize: 16,
-                        color: "#fff",
-                        textShadow: "0 1px 4px rgba(0,0,0,0.6)",
-                        cursor: "grab",
-                        whiteSpace: "nowrap",
-                        userSelect: "none",
+                        fontFamily: f.css,
+                        fontSize: 13,
+                        padding: "4px 10px",
+                        borderRadius: 20,
+                        border: captionFont === f.key ? "1.5px solid rgba(255,255,255,0.8)" : "1px solid rgba(255,255,255,0.15)",
+                        background: captionFont === f.key ? "rgba(255,255,255,0.15)" : "transparent",
+                        color: captionFont === f.key ? "#fff" : "rgba(255,255,255,0.5)",
+                        cursor: "pointer",
+                        transition: "all 150ms ease",
                       }}
                     >
-                      {t.text}
-                    </span>
-                  )}
-                </motion.div>
-              ))}
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
 
-              {/* Hint text */}
-              {cardTexts.length === 0 && (
-                <p
-                  style={{
-                    fontFamily:
-                      "var(--font-patrick-hand), 'Patrick Hand', cursive",
-                    fontSize: 13,
-                    color: "rgba(0,0,0,0.25)",
-                    textAlign: "center",
-                    margin: "6px 0 4px",
-                    pointerEvents: "none",
-                  }}
-                >
-                  tap anywhere to write
-                </p>
-              )}
-            </motion.div>
+                {/* Sizes */}
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  {SIZE_OPTIONS.map((s) => (
+                    <button
+                      key={s.key}
+                      onClick={() => setCaptionSize(s.key)}
+                      style={{
+                        fontSize: s.key === "sm" ? 11 : s.key === "md" ? 13 : s.key === "lg" ? 15 : 17,
+                        fontWeight: 600,
+                        width: 32,
+                        height: 32,
+                        borderRadius: "50%",
+                        border: captionSize === s.key ? "1.5px solid rgba(255,255,255,0.8)" : "1px solid rgba(255,255,255,0.15)",
+                        background: captionSize === s.key ? "rgba(255,255,255,0.15)" : "transparent",
+                        color: captionSize === s.key ? "#fff" : "rgba(255,255,255,0.5)",
+                        cursor: "pointer",
+                        transition: "all 150ms ease",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
             )}
 
             <div className="flex gap-4 flex-wrap justify-center result-actions">
               <motion.button
                 onClick={handleAddToFridge}
+                disabled={savingToFridge}
                 className="cursor-pointer"
                 style={{
-                  backgroundColor: "rgb(255, 255, 255)",
+                  backgroundColor: savingToFridge ? "rgba(255,255,255,0.6)" : "rgb(255, 255, 255)",
                   borderRadius: "100px",
                   boxShadow:
                     "rgb(176, 176, 176) 0px 5px 0px 0px, rgba(0, 0, 0, 0.28) 0px 8px 14px 0px",
@@ -1624,11 +1918,12 @@ export default function Home() {
                   color: "#000",
                   fontSize: "15px",
                   fontWeight: 500,
+                  opacity: savingToFridge ? 0.7 : 1,
                 }}
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.97 }}
+                whileHover={savingToFridge ? {} : { scale: 1.04 }}
+                whileTap={savingToFridge ? {} : { scale: 0.97 }}
               >
-                Add to Fridge
+                {savingToFridge ? "Saving..." : "Add to Fridge"}
               </motion.button>
               <button
                 onClick={handleDownload}
@@ -1656,10 +1951,11 @@ export default function Home() {
               </button>
               <button
                 onClick={() => {
+                  if (caption && !window.confirm("You have a caption — discard and take another?")) return;
                   setCapturedImage(null);
                   setBoothPhotos([]);
                   setBoothMode(0);
-                  setCardTexts([]);
+                  setCaption("");
                   setStage("landing");
                 }}
                 style={{

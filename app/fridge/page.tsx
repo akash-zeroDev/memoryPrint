@@ -16,6 +16,55 @@ import {
 const BOARD_HEIGHT = 1100;
 const CARD_W = 280;
 
+const FONT_OPTIONS = [
+  { key: "patrick", label: "Handwriting", css: "var(--font-patrick-hand), 'Patrick Hand', cursive", canvas: "Patrick Hand" },
+  { key: "caveat", label: "Casual", css: "var(--font-caveat), 'Caveat', cursive", canvas: "Caveat" },
+  { key: "marker", label: "Marker", css: "var(--font-permanent-marker), 'Permanent Marker', cursive", canvas: "Permanent Marker" },
+  { key: "indie", label: "Sketchy", css: "var(--font-indie-flower), 'Indie Flower', cursive", canvas: "Indie Flower" },
+  { key: "shadows", label: "Dreamy", css: "var(--font-shadows), 'Shadows Into Light', cursive", canvas: "Shadows Into Light" },
+  { key: "satisfy", label: "Fancy", css: "var(--font-satisfy), 'Satisfy', cursive", canvas: "Satisfy" },
+];
+
+const SIZE_OPTIONS = [
+  { key: "sm", label: "S", px: 16, canvas: 28 },
+  { key: "md", label: "M", px: 22, canvas: 42 },
+  { key: "lg", label: "L", px: 28, canvas: 56 },
+  { key: "xl", label: "XL", px: 34, canvas: 68 },
+];
+
+const FRAME_COLORS = [
+  { key: "classic", label: "Classic", color: "#FDFDFB", text: "#333" },
+  { key: "black", label: "Dark", color: "#1a1a1a", text: "#eee" },
+  { key: "cream", label: "Cream", color: "#F5ECDA", text: "#5a4a3a" },
+  { key: "pink", label: "Blush", color: "#FADCE6", text: "#7a3a4a" },
+  { key: "mint", label: "Mint", color: "#D4EDDA", text: "#2d5a3a" },
+  { key: "sky", label: "Sky", color: "#D6EAF8", text: "#2a4a6a" },
+  { key: "lavender", label: "Lavender", color: "#E8DAEF", text: "#5a3a6a" },
+  { key: "sunset", label: "Sunset", color: "#FDEBD0", text: "#6a4a2a" },
+];
+
+function resolveFrameColor(key: string) {
+  const preset = FRAME_COLORS.find(f => f.key === key);
+  if (preset) return preset;
+  const isLight = (() => {
+    const hex = key.replace("#", "");
+    if (hex.length !== 6) return true;
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    return (r * 299 + g * 587 + b * 114) / 1000 > 140;
+  })();
+  return { key, label: "Custom", color: key, text: isLight ? "#333" : "#eee" };
+}
+
+const FRAME_SIZES = [
+  { key: "auto", label: "Auto", ratio: "auto", canvasBottom: 0.16 },
+  { key: "compact", label: "Compact", ratio: "27 / 22", canvasBottom: 0.14 },
+  { key: "classic", label: "Classic", ratio: "27 / 24", canvasBottom: 0.18 },
+  { key: "wide", label: "Wide", ratio: "30 / 22", canvasBottom: 0.14 },
+  { key: "square", label: "Square", ratio: "1 / 1", canvasBottom: 0.15 },
+];
+
 type CustomFridge = {
   name: string;
   paperType: PaperType;
@@ -42,6 +91,14 @@ export default function FridgePage() {
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
   const [memories, setMemories] = useState<FridgeMemory[]>([]);
   const [open, setOpen] = useState<FridgeMemory | null>(null);
+  const [modalCaption, setModalCaption] = useState("");
+  const [modalCaptionColor, setModalCaptionColor] = useState("#333");
+  const [modalCaptionFont, setModalCaptionFont] = useState("patrick");
+  const [modalCaptionSize, setModalCaptionSize] = useState("md");
+  const [modalFrameColor, setModalFrameColor] = useState("classic");
+  const [modalFrameSize, setModalFrameSize] = useState("auto");
+  const [captionEditing, setCaptionEditing] = useState(false);
+  const modalCardRef = useRef<HTMLDivElement>(null);
   const [preset, setPreset] = useState(0);
   const [customFridges, setCustomFridges] = useState<CustomFridge[]>([]);
   const [showAddFridge, setShowAddFridge] = useState(false);
@@ -106,21 +163,22 @@ export default function FridgePage() {
   };
 
   const handleDeleteCustomFridge = (customIndex: number) => {
+    if (!window.confirm("Delete this fridge? Cards on it will move to the first fridge.")) return;
     const absoluteIndex = PAPER_PRESETS.length + customIndex;
-    // Move any memories on this fridge back to fridge 0
     setMemories((prev) => {
-      const next = prev.map((m) =>
-        (m.fridge ?? 0) === absoluteIndex ? { ...m, fridge: 0 } : m
-      );
+      const next = prev.map((m) => {
+        const f = m.fridge ?? 0;
+        if (f === absoluteIndex) return { ...m, fridge: 0 };
+        if (f > absoluteIndex) return { ...m, fridge: f - 1 };
+        return m;
+      });
       next
         .filter((m, i) => m !== prev[i])
-        .forEach((m) => {
-          putMemory(m).catch(() => {});
-        });
+        .forEach((m) => { putMemory(m).catch(() => {}); });
       return next;
     });
     setCustomFridges((prev) => prev.filter((_, i) => i !== customIndex));
-    if (preset === absoluteIndex) setPreset(0);
+    if (preset >= absoluteIndex) setPreset(Math.max(0, preset - 1));
   };
 
   useEffect(() => {
@@ -143,7 +201,7 @@ export default function FridgePage() {
     const saved = typeof window !== "undefined" ? localStorage.getItem("fridge_preset") : null;
     if (saved != null) {
       const n = parseInt(saved, 10);
-      if (!Number.isNaN(n) && n >= 0 && n < PAPER_PRESETS.length) setPreset(n);
+      if (!Number.isNaN(n) && n >= 0) setPreset(n);
     }
   }, []);
 
@@ -151,17 +209,17 @@ export default function FridgePage() {
 
   const handleMoveToFridge = async (m: FridgeMemory, targetFridge: number) => {
     if (m.fridge === targetFridge) return;
+    const boardW = containerRef.current?.clientWidth ?? 1200;
     const updated = {
       ...m,
       fridge: targetFridge,
-      // give it a fresh natural spot on the new fridge so it doesn't land on top of an existing memory
-      x: 40 + Math.random() * 600,
-      y: 40 + Math.random() * 400,
+      x: 20 + Math.random() * Math.max(0, boardW - CARD_W - 40),
+      y: 20 + Math.random() * Math.max(0, BOARD_HEIGHT - 350),
       rotate: (Math.random() - 0.5) * 14,
     };
     await putMemory(updated);
     setMemories((prev) => prev.map((p) => (p.id === m.id ? updated : p)));
-    setOpen(updated);
+    setOpen(null); setCaptionEditing(false);
   };
 
   useEffect(() => {
@@ -169,7 +227,10 @@ export default function FridgePage() {
   }, [preset]);
 
   const handleDragEnd = async (m: FridgeMemory, dx: number, dy: number) => {
-    const updated = { ...m, x: m.x + dx, y: m.y + dy };
+    const boardW = containerRef.current?.clientWidth ?? 1200;
+    const newX = Math.max(0, Math.min(m.x + dx, boardW - CARD_W));
+    const newY = Math.max(0, Math.min(m.y + dy, BOARD_HEIGHT - 100));
+    const updated = { ...m, x: newX, y: newY };
     setMemories((prev) => prev.map((p) => (p.id === m.id ? updated : p)));
     await putMemory(updated);
   };
@@ -180,20 +241,82 @@ export default function FridgePage() {
     setOpen(null);
   };
 
+  const handleDownloadMemory = (m: FridgeMemory) => {
+    if (!m.image) return;
+    const canvas = document.createElement("canvas");
+    const cardW = 1800;
+    const sidePad = Math.round(cardW * 0.055);
+    const topPad = Math.round(cardW * 0.055);
+    const frameSizeCfg = FRAME_SIZES.find(f => f.key === (m.frameSize || "auto"));
+    const bottomPad = Math.round(cardW * (frameSizeCfg?.canvasBottom ?? 0.16));
+    const imgW = cardW - sidePad * 2;
+    const fc = resolveFrameColor(m.frameColor || "classic");
+    const fColor = fc.color;
+    const fText = fc.text;
+    const isAuto = !m.frameSize || m.frameSize === "auto";
+    const img = new Image();
+    img.onload = () => {
+      const imgH = isAuto
+        ? Math.round(imgW / (img.width / img.height))
+        : Math.round(imgW * (3760 / 5640));
+      const cardH = topPad + imgH + bottomPad;
+      canvas.width = cardW;
+      canvas.height = cardH;
+      const ctx = canvas.getContext("2d")!;
+      ctx.fillStyle = fColor;
+      ctx.fillRect(0, 0, cardW, cardH);
+      const srcA = img.width / img.height;
+      const tgtA = imgW / imgH;
+      let sx = 0, sy = 0, sw = img.width, sh = img.height;
+      if (!isAuto && srcA > tgtA) { sw = img.height * tgtA; sx = (img.width - sw) / 2; }
+      else if (!isAuto) { sh = img.width / tgtA; sy = (img.height - sh) / 2; }
+      ctx.drawImage(img, sx, sy, sw, sh, sidePad, topPad, imgW, imgH);
+      if (m.caption?.trim()) {
+        ctx.save();
+        const canvasFont = FONT_OPTIONS.find(f => f.key === (m.captionFont || "patrick"))?.canvas ?? "Patrick Hand";
+        const canvasSize = (SIZE_OPTIONS.find(s => s.key === (m.captionSize || "md"))?.canvas ?? 42) * 2;
+        ctx.font = `${canvasSize}px '${canvasFont}', cursive`;
+        ctx.fillStyle = m.captionColor || fText;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(m.caption, cardW / 2, topPad + imgH + bottomPad * 0.45, imgW - 40);
+        ctx.restore();
+      }
+      const d = new Date(m.date);
+      const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      ctx.save();
+      ctx.font = "48px 'Patrick Hand', cursive";
+      ctx.fillStyle = fText !== "#333" ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.25)";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(dateStr, cardW / 2, topPad + imgH + bottomPad * (m.caption?.trim() ? 0.78 : 0.5));
+      ctx.restore();
+      const link = document.createElement("a");
+      link.download = `memoryprint-${Date.now()}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    };
+    img.src = m.image;
+  };
+
   const shuffleCards = useCallback(() => {
+    const boardW = containerRef.current?.clientWidth ?? 1200;
+    const maxX = Math.max(0, boardW - CARD_W - 20);
+    const maxY = Math.max(0, BOARD_HEIGHT - 320);
     setMemories((prev) =>
       prev.map((m) => {
+        if ((m.fridge ?? 0) !== preset) return m;
         const updated = {
           ...m,
-          x: 20 + Math.random() * 900,
-          y: 20 + Math.random() * 600,
-          rotate: (Math.random() - 0.5) * 24,
+          x: 20 + Math.random() * maxX,
+          y: 20 + Math.random() * maxY,
+          rotate: (Math.random() - 0.5) * 16,
         };
         putMemory(updated).catch(() => {});
         return updated;
       })
     );
-  }, []);
+  }, [preset]);
 
   useEffect(() => {
     let lastShake = 0;
@@ -207,7 +330,16 @@ export default function FridgePage() {
         shuffleCards();
       }
     };
-    window.addEventListener("devicemotion", handleMotion);
+    const requestPermission = async () => {
+      if (typeof (DeviceMotionEvent as unknown as { requestPermission?: () => Promise<string> }).requestPermission === "function") {
+        try {
+          const result = await (DeviceMotionEvent as unknown as { requestPermission: () => Promise<string> }).requestPermission();
+          if (result !== "granted") return;
+        } catch { return; }
+      }
+      window.addEventListener("devicemotion", handleMotion);
+    };
+    requestPermission();
     return () => window.removeEventListener("devicemotion", handleMotion);
   }, [shuffleCards]);
 
@@ -254,7 +386,7 @@ export default function FridgePage() {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "16px 28px",
+          padding: "12px clamp(12px, 3vw, 28px)",
           backdropFilter: "blur(10px)",
           WebkitBackdropFilter: "blur(10px)",
           background: "rgba(0,0,0,0.55)",
@@ -326,9 +458,9 @@ export default function FridgePage() {
                 className="fridge-heading"
                 style={{
                   fontFamily: '"GT Walsheim Framer Regular", system-ui, sans-serif',
-                  fontSize: 46,
+                  fontSize: "clamp(28px, 7vw, 46px)",
                   fontWeight: 500,
-                  letterSpacing: "-1.8px",
+                  letterSpacing: "-1.2px",
                   color: "#fff",
                   margin: 0,
                 }}
@@ -375,6 +507,59 @@ export default function FridgePage() {
                   Shuffle
                 </button>
               </div>
+              <AnimatePresence>
+                {showShowcase && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.25 }}
+                    style={{ overflow: "hidden", marginTop: 10 }}
+                  >
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center", alignItems: "center" }}>
+                      {memories.filter((m) => m.image).map((m) => {
+                        const selected = showcaseIds.has(m.id);
+                        return (
+                          <div
+                            key={m.id}
+                            onClick={() => {
+                              setShowcaseIds((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(m.id)) next.delete(m.id);
+                                else next.add(m.id);
+                                localStorage.setItem("ring_showcase_ids", JSON.stringify([...next]));
+                                return next;
+                              });
+                            }}
+                            style={{
+                              width: 44,
+                              height: 44,
+                              borderRadius: 6,
+                              overflow: "hidden",
+                              cursor: "pointer",
+                              border: selected ? "2px solid #fff" : "2px solid rgba(255,255,255,0.15)",
+                              opacity: selected ? 1 : 0.45,
+                              transition: "all 200ms",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={m.image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                          </div>
+                        );
+                      })}
+                      {showcaseIds.size > 0 && (
+                        <button
+                          onClick={() => { setShowcaseIds(new Set()); localStorage.removeItem("ring_showcase_ids"); }}
+                          style={{ padding: "4px 10px", borderRadius: 999, fontSize: 10, cursor: "pointer", background: "transparent", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.15)" }}
+                        >
+                          Reset
+                        </button>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
 
@@ -490,19 +675,31 @@ export default function FridgePage() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    color: "rgba(0,0,0,0.45)",
-                    fontSize: 14,
+                    color: "rgba(0,0,0,0.5)",
+                    fontSize: 15,
+                    fontFamily: "var(--font-patrick-hand), 'Patrick Hand', sans-serif",
+                    textShadow: "0 0 8px rgba(255,255,255,0.5)",
                   }}
                 >
                   Nothing on this fridge yet —{" "}
-                  <Link href="/" style={{ marginLeft: 6, textDecoration: "underline", color: "rgba(0,0,0,0.65)" }}>
+                  <Link href="/" style={{ marginLeft: 6, textDecoration: "underline", color: "rgba(0,0,0,0.7)" }}>
                     take a snapshot
                   </Link>
                   .
                 </div>
               )}
 
-              {visibleMemories.map((m) => (
+              {visibleMemories.map((m) => {
+                const fc = resolveFrameColor(m.frameColor || "classic");
+                const frameBg = fc?.color ?? "rgb(252, 251, 248)";
+                const frameText = fc?.text ?? "#333";
+                const savedSize = SIZE_OPTIONS.find(s => s.key === (m.captionSize || "md"));
+                const cardFontPx = Math.round((savedSize?.px ?? 14) * (CARD_W / 440));
+                const fsKey = m.frameSize || "auto";
+                const fsCfg = FRAME_SIZES.find(f => f.key === fsKey);
+                const cardRatio = fsKey === "auto" ? undefined : fsCfg?.ratio;
+                const imgRatio = fsKey === "auto" ? undefined : "5640 / 3760";
+                return (
                 <motion.div
                   key={m.id}
                   drag
@@ -522,6 +719,12 @@ export default function FridgePage() {
                     const s = dragStartRef.current;
                     if (s && Math.abs(e.clientX - s.x) < 5 && Math.abs(e.clientY - s.y) < 5) {
                       setOpen(m);
+                      setModalCaption(m.caption || "");
+                      setModalCaptionColor(m.captionColor || (resolveFrameColor(m.frameColor || "classic")?.text ?? "#333"));
+                      setModalCaptionFont(m.captionFont || "patrick");
+                      setModalCaptionSize(m.captionSize || "md");
+                      setModalFrameColor(m.frameColor || "classic");
+                      setModalFrameSize(m.frameSize || "auto");
                     }
                     dragStartRef.current = null;
                   }}
@@ -595,7 +798,7 @@ export default function FridgePage() {
                         style={{
                           position: "absolute", bottom: 4, right: 6,
                           fontFamily: "var(--font-patrick-hand), 'Patrick Hand', sans-serif",
-                          fontSize: 8, color: "rgba(0,0,0,0.2)", margin: 0,
+                          fontSize: 11, color: "rgba(0,0,0,0.3)", margin: 0,
                         }}
                       >
                         {dateLabel(m.date)}
@@ -604,12 +807,13 @@ export default function FridgePage() {
                   ) : (
                   <div
                     style={{
-                      background: "rgb(252, 251, 248)",
+                      background: frameBg,
                       borderRadius: 4,
                       padding: "6% 6% 18% 6%",
                       boxShadow:
                         "0 12px 24px rgba(0,0,0,0.45), 0 3px 6px rgba(0,0,0,0.35)",
                       position: "relative",
+                      aspectRatio: cardRatio,
                     }}
                   >
                     <div
@@ -618,6 +822,7 @@ export default function FridgePage() {
                         background: "rgb(8,8,10)",
                         borderRadius: 2,
                         overflow: "hidden",
+                        aspectRatio: imgRatio,
                       }}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -627,10 +832,13 @@ export default function FridgePage() {
                         draggable={false}
                         style={{
                           width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
                           display: "block",
                         }}
                       />
                     </div>
+                    {/* Legacy: old positioned texts */}
                     {m.texts?.map((t) => (
                       <span
                         key={t.id}
@@ -640,9 +848,8 @@ export default function FridgePage() {
                           top: `${t.y}%`,
                           transform: "translate(-50%, -50%)",
                           fontFamily: "var(--font-patrick-hand), 'Patrick Hand', cursive",
-                          fontSize: 10,
-                          color: "#fff",
-                          textShadow: "0 1px 3px rgba(0,0,0,0.6)",
+                          fontSize: 12,
+                          color: frameText,
                           whiteSpace: "nowrap",
                           pointerEvents: "none",
                         }}
@@ -650,14 +857,30 @@ export default function FridgePage() {
                         {t.text}
                       </span>
                     ))}
+                    {/* Caption */}
+                    {m.caption && (
+                      <p style={{
+                        fontFamily: FONT_OPTIONS.find(f => f.key === (m.captionFont || "patrick"))?.css,
+                        fontSize: cardFontPx,
+                        color: m.captionColor || frameText,
+                        textAlign: "center",
+                        margin: "4px 0 0",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}>
+                        {m.caption}
+                      </p>
+                    )}
                     <p
                       style={{
                         fontFamily: "var(--font-patrick-hand), 'Patrick Hand', sans-serif",
-                        fontSize: 14,
-                        color: "#333",
+                        fontSize: m.caption ? 11 : 14,
+                        color: frameText,
                         textAlign: "center",
-                        marginTop: 8,
+                        marginTop: m.caption ? 2 : 8,
                         marginBottom: 0,
+                        opacity: m.caption ? 0.5 : 1,
                       }}
                     >
                       {dateLabel(m.date)}
@@ -665,185 +888,11 @@ export default function FridgePage() {
                   </div>
                   )}
                 </motion.div>
-              ))}
+                );
+              })}
             </div>
           </PaperBackground>
-          {/* Showcase toggle + Shuffle buttons moved below showcase grid */}
-
-          {/* Showcase selection grid */}
-          <AnimatePresence>
-            {showShowcase && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.3 }}
-                style={{ overflow: "hidden", marginTop: 16 }}
-              >
-                <p
-                  style={{
-                    fontSize: 12,
-                    color: "rgba(255,255,255,0.5)",
-                    textAlign: "center",
-                    marginBottom: 12,
-                  }}
-                >
-                  Tap photos to add/remove from camera background ring
-                </p>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
-                    gap: 14,
-                    marginBottom: 16,
-                  }}
-                >
-                  {memories.map((m) => {
-                    const selected = showcaseIds.has(m.id);
-                    return (
-                      <div
-                        key={m.id}
-                        onClick={() => {
-                          setShowcaseIds((prev) => {
-                            const next = new Set(prev);
-                            if (next.has(m.id)) next.delete(m.id);
-                            else next.add(m.id);
-                            localStorage.setItem(
-                              "ring_showcase_ids",
-                              JSON.stringify([...next])
-                            );
-                            return next;
-                          });
-                        }}
-                        style={{
-                          cursor: "pointer",
-                          position: "relative",
-                          opacity: selected ? 1 : 0.5,
-                          transition: "all 200ms",
-                          transform: selected ? "scale(1.03)" : "scale(1)",
-                        }}
-                      >
-                        <div
-                          style={{
-                            background: "rgb(252, 251, 248)",
-                            borderRadius: 4,
-                            padding: "6% 6% 18% 6%",
-                            boxShadow: selected
-                              ? "0 0 0 3px #fff, 0 8px 20px rgba(0,0,0,0.4)"
-                              : "0 6px 16px rgba(0,0,0,0.3)",
-                          }}
-                        >
-                          <div
-                            style={{
-                              width: "100%",
-                              background: "rgb(8,8,10)",
-                              borderRadius: 2,
-                              overflow: "hidden",
-                            }}
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            {m.image && <img
-                              src={m.image}
-                              alt=""
-                              style={{
-                                width: "100%",
-                                display: "block",
-                              }}
-                            />}
-                          </div>
-                          <p
-                            style={{
-                              fontFamily: "var(--font-patrick-hand), 'Patrick Hand', sans-serif",
-                              fontSize: 11,
-                              color: "#333",
-                              textAlign: "center",
-                              marginTop: 6,
-                              marginBottom: 0,
-                            }}
-                          >
-                            {dateLabel(m.date)}
-                          </p>
-                        </div>
-                        {selected && (
-                          <div
-                            style={{
-                              position: "absolute",
-                              top: -6,
-                              right: -6,
-                              width: 24,
-                              height: 24,
-                              borderRadius: 999,
-                              background: "#fff",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              fontSize: 13,
-                              color: "#0a0a0a",
-                              fontWeight: 700,
-                              boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
-                            }}
-                          >
-                            ✓
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {memories.length === 0 && (
-                  <p
-                    style={{
-                      fontSize: 13,
-                      color: "rgba(255,255,255,0.4)",
-                      textAlign: "center",
-                      padding: "20px 0",
-                    }}
-                  >
-                    No photos yet — take some snapshots first!
-                  </p>
-                )}
-
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 10,
-                    justifyContent: "center",
-                    marginBottom: 8,
-                  }}
-                >
-                  {showcaseIds.size > 0 && (
-                    <button
-                      onClick={() => {
-                        setShowcaseIds(new Set());
-                        localStorage.removeItem("ring_showcase_ids");
-                      }}
-                      style={{
-                        padding: "8px 16px",
-                        borderRadius: 999,
-                        fontSize: 12,
-                        cursor: "pointer",
-                        background: "transparent",
-                        color: "rgba(255,255,255,0.6)",
-                        border: "1px solid rgba(255,255,255,0.15)",
-                      }}
-                    >
-                      Reset to defaults
-                    </button>
-                  )}
-                  <p
-                    style={{
-                      fontSize: 11,
-                      color: "rgba(255,255,255,0.4)",
-                      alignSelf: "center",
-                    }}
-                  >
-                    {showcaseIds.size} selected
-                  </p>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {/* Showcase grid moved to under heading */}
         </div>
       </section>
 
@@ -854,7 +903,7 @@ export default function FridgePage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            onClick={() => setOpen(null)}
+            onClick={() => { setOpen(null); setCaptionEditing(false); }}
             style={{
               position: "fixed",
               inset: 0,
@@ -875,7 +924,7 @@ export default function FridgePage() {
               transition={{ type: "spring", stiffness: 260, damping: 24 }}
               onClick={(e) => e.stopPropagation()}
               style={{
-                background: open.type === "note" ? (open.noteColor || "#fff9c4") : "rgb(252, 251, 248)",
+                background: open.type === "note" ? (open.noteColor || "#fff9c4") : (resolveFrameColor(modalFrameColor).color),
                 borderRadius: 6,
                 padding: open.type === "note" ? "24px 20px 16px" : "3% 3% 10% 3%",
                 width: open.type === "note" ? "min(440px, 90vw)" : "min(380px, 85vw)",
@@ -933,9 +982,13 @@ export default function FridgePage() {
                 </div>
               ) : (
                 <>
+              {/* Edit toggle — kept minimal */}
+
               <div
+                ref={modalCardRef}
                 style={{
                   width: "100%",
+                  position: "relative",
                   background: "rgb(8,8,10)",
                   borderRadius: 2,
                   overflow: "hidden",
@@ -947,34 +1000,307 @@ export default function FridgePage() {
                   alt=""
                   style={{ width: "100%", maxHeight: "35vh", objectFit: "contain", display: "block", margin: "0 auto" }}
                 />
+
+                {/* Legacy: old positioned texts */}
+                {(open.texts ?? []).map((t) => (
+                  <span
+                    key={t.id}
+                    style={{
+                      position: "absolute",
+                      left: `${t.x}%`,
+                      top: `${t.y}%`,
+                      transform: "translate(-50%, -50%)",
+                      fontFamily: "var(--font-patrick-hand), 'Patrick Hand', cursive",
+                      fontSize: 16,
+                      color: "#fff",
+                      textShadow: "0 1px 4px rgba(0,0,0,0.6)",
+                      whiteSpace: "nowrap",
+                      pointerEvents: "none",
+                    }}
+                  >
+                    {t.text}
+                  </span>
+                ))}
               </div>
-              {open.texts?.map((t) => (
-                <span
-                  key={t.id}
-                  style={{
-                    position: "absolute",
-                    left: `${t.x}%`,
-                    top: `${t.y}%`,
-                    transform: "translate(-50%, -50%)",
-                    fontFamily: "var(--font-patrick-hand), 'Patrick Hand', cursive",
-                    fontSize: 18,
-                    color: "#fff",
-                    textShadow: "0 1px 4px rgba(0,0,0,0.6)",
-                    whiteSpace: "nowrap",
-                    pointerEvents: "none",
-                  }}
-                >
-                  {t.text}
-                </span>
-              ))}
+
+              {/* Caption editing */}
+              <div
+                style={{
+                  padding: "10px 12px 4px",
+                  cursor: "text",
+                }}
+                onClick={() => setCaptionEditing(true)}
+              >
+                {captionEditing ? (
+                  <input
+                    autoFocus
+                    value={modalCaption}
+                    onChange={(e) => setModalCaption(e.target.value)}
+                    onBlur={() => {
+                      setCaptionEditing(false);
+                      const updated = { ...open, caption: modalCaption.trim() || undefined, captionColor: modalCaptionColor, captionFont: modalCaptionFont, captionSize: modalCaptionSize };
+                      putMemory(updated).catch(() => {});
+                      setMemories((prev) => prev.map((m) => (m.id === open.id ? updated : m)));
+                      setOpen(updated);
+                    }}
+                    onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                    maxLength={40}
+                    placeholder="write a caption..."
+                    style={{
+                      fontFamily: FONT_OPTIONS.find(f => f.key === modalCaptionFont)?.css,
+                      fontSize: SIZE_OPTIONS.find(s => s.key === modalCaptionSize)?.px ?? 20,
+                      color: modalCaptionColor,
+                      background: "transparent",
+                      border: "none",
+                      borderBottom: modalFrameColor === "black" ? "1.5px dashed rgba(255,255,255,0.2)" : "1.5px dashed rgba(0,0,0,0.15)",
+                      outline: "none",
+                      textAlign: "center",
+                      width: "100%",
+                      padding: "2px 4px",
+                    }}
+                  />
+                ) : (
+                  <p style={{
+                    fontFamily: FONT_OPTIONS.find(f => f.key === (open.captionFont || modalCaptionFont))?.css,
+                    fontSize: SIZE_OPTIONS.find(s => s.key === (open.captionSize || modalCaptionSize))?.px ?? 20,
+                    color: (open.caption || modalCaption) ? (open.captionColor || modalCaptionColor) : (resolveFrameColor(modalFrameColor).text !== "#333" ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.2)"),
+                    textAlign: "center",
+                    margin: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                  }}>
+                    {!(open.caption || modalCaption) && (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
+                        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                        <path d="m15 5 4 4" />
+                      </svg>
+                    )}
+                    {open.caption || modalCaption || "write a caption..."}
+                  </p>
+                )}
+              </div>
+
+              {/* Caption style toolbar */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "center", padding: "8px 0" }}>
+                {/* Colors */}
+                <div style={{ display: "flex", gap: 7, alignItems: "center" }}>
+                  {["#333", "#1a6dd4", "#c0392b", "#27ae60", "#8e44ad", "#e67e22"].map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => {
+                        setModalCaptionColor(c);
+                        if (open.caption || modalCaption) {
+                          const updated = { ...open, captionColor: c };
+                          putMemory(updated).catch(() => {});
+                          setMemories((prev) => prev.map((m) => (m.id === open.id ? updated : m)));
+                          setOpen(updated);
+                        }
+                      }}
+                      style={{
+                        width: modalCaptionColor === c ? 22 : 16,
+                        height: modalCaptionColor === c ? 22 : 16,
+                        borderRadius: "50%",
+                        backgroundColor: c,
+                        border: modalCaptionColor === c ? "2px solid rgba(0,0,0,0.3)" : "1.5px solid rgba(0,0,0,0.1)",
+                        cursor: "pointer",
+                        transition: "all 150ms ease",
+                      }}
+                    />
+                  ))}
+                </div>
+
+                {/* Fonts */}
+                <div style={{ display: "flex", gap: 5, flexWrap: "wrap", justifyContent: "center" }}>
+                  {FONT_OPTIONS.map((f) => (
+                    <button
+                      key={f.key}
+                      onClick={() => {
+                        setModalCaptionFont(f.key);
+                        if (open.caption || modalCaption) {
+                          const updated = { ...open, captionFont: f.key };
+                          putMemory(updated).catch(() => {});
+                          setMemories((prev) => prev.map((m) => (m.id === open.id ? updated : m)));
+                          setOpen(updated);
+                        }
+                      }}
+                      style={{
+                        fontFamily: f.css,
+                        fontSize: 12,
+                        padding: "3px 8px",
+                        borderRadius: 16,
+                        border: modalCaptionFont === f.key
+                          ? `1.5px solid ${resolveFrameColor(modalFrameColor).text !== "#333" ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)"}`
+                          : `1px solid ${resolveFrameColor(modalFrameColor).text !== "#333" ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)"}`,
+                        background: modalCaptionFont === f.key
+                          ? (resolveFrameColor(modalFrameColor).text !== "#333" ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)")
+                          : "transparent",
+                        color: modalCaptionFont === f.key
+                          ? (resolveFrameColor(modalFrameColor).text)
+                          : (resolveFrameColor(modalFrameColor).text !== "#333" ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)"),
+                        cursor: "pointer",
+                        transition: "all 150ms ease",
+                      }}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Sizes */}
+                <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+                  {SIZE_OPTIONS.map((s) => (
+                    <button
+                      key={s.key}
+                      onClick={() => {
+                        setModalCaptionSize(s.key);
+                        if (open.caption || modalCaption) {
+                          const updated = { ...open, captionSize: s.key };
+                          putMemory(updated).catch(() => {});
+                          setMemories((prev) => prev.map((m) => (m.id === open.id ? updated : m)));
+                          setOpen(updated);
+                        }
+                      }}
+                      style={{
+                        fontSize: s.key === "sm" ? 10 : s.key === "md" ? 12 : s.key === "lg" ? 14 : 16,
+                        fontWeight: 600,
+                        width: 28,
+                        height: 28,
+                        borderRadius: "50%",
+                        border: modalCaptionSize === s.key
+                          ? `1.5px solid ${resolveFrameColor(modalFrameColor).text !== "#333" ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)"}`
+                          : `1px solid ${resolveFrameColor(modalFrameColor).text !== "#333" ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)"}`,
+                        background: modalCaptionSize === s.key
+                          ? (resolveFrameColor(modalFrameColor).text !== "#333" ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)")
+                          : "transparent",
+                        color: modalCaptionSize === s.key
+                          ? (resolveFrameColor(modalFrameColor).text)
+                          : (resolveFrameColor(modalFrameColor).text !== "#333" ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)"),
+                        cursor: "pointer",
+                        transition: "all 150ms ease",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Frame style toolbar */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "center", padding: "4px 0 8px" }}>
+                <p style={{ fontSize: 10, color: resolveFrameColor(modalFrameColor).text, opacity: 0.5, textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>Frame</p>
+                <div style={{ display: "flex", gap: 7, alignItems: "center" }}>
+                  {FRAME_COLORS.map((fc) => (
+                    <button
+                      key={fc.key}
+                      onClick={() => {
+                        setModalFrameColor(fc.key);
+                        const updated = { ...open, frameColor: fc.key };
+                        putMemory(updated).catch(() => {});
+                        setMemories((prev) => prev.map((m) => (m.id === open.id ? updated : m)));
+                        setOpen(updated);
+                      }}
+                      style={{
+                        width: modalFrameColor === fc.key ? 26 : 20,
+                        height: modalFrameColor === fc.key ? 26 : 20,
+                        borderRadius: 4,
+                        backgroundColor: fc.color,
+                        border: modalFrameColor === fc.key ? "2px solid rgba(128,128,128,0.5)" : "1.5px solid rgba(128,128,128,0.2)",
+                        cursor: "pointer",
+                        transition: "all 150ms ease",
+                      }}
+                    />
+                  ))}
+                  <label
+                    title="Pick any color"
+                    style={{
+                      width: !FRAME_COLORS.some(f => f.key === modalFrameColor) ? 26 : 20,
+                      height: !FRAME_COLORS.some(f => f.key === modalFrameColor) ? 26 : 20,
+                      borderRadius: 4,
+                      cursor: "pointer",
+                      position: "relative",
+                      overflow: "hidden",
+                      border: !FRAME_COLORS.some(f => f.key === modalFrameColor)
+                        ? "2px solid rgba(128,128,128,0.5)"
+                        : "1.5px solid rgba(128,128,128,0.2)",
+                      background: !FRAME_COLORS.some(f => f.key === modalFrameColor)
+                        ? resolveFrameColor(modalFrameColor).color
+                        : "conic-gradient(from 0deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)",
+                      transition: "all 150ms ease",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <input
+                      type="color"
+                      value={resolveFrameColor(modalFrameColor).color}
+                      onChange={(e) => {
+                        setModalFrameColor(e.target.value);
+                        const updated = { ...open, frameColor: e.target.value };
+                        putMemory(updated).catch(() => {});
+                        setMemories((prev) => prev.map((m) => (m.id === open.id ? updated : m)));
+                        setOpen(updated);
+                      }}
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        opacity: 0,
+                        width: "100%",
+                        height: "100%",
+                        cursor: "pointer",
+                        border: "none",
+                        padding: 0,
+                      }}
+                    />
+                  </label>
+                </div>
+                <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+                  {FRAME_SIZES.map((fs) => (
+                    <button
+                      key={fs.key}
+                      onClick={() => {
+                        setModalFrameSize(fs.key);
+                        const updated = { ...open, frameSize: fs.key };
+                        putMemory(updated).catch(() => {});
+                        setMemories((prev) => prev.map((m) => (m.id === open.id ? updated : m)));
+                        setOpen(updated);
+                      }}
+                      style={{
+                        fontSize: 11,
+                        padding: "3px 10px",
+                        borderRadius: 16,
+                        border: modalFrameSize === fs.key
+                          ? `1.5px solid ${resolveFrameColor(modalFrameColor).text !== "#333" ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)"}`
+                          : `1px solid ${resolveFrameColor(modalFrameColor).text !== "#333" ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)"}`,
+                        background: modalFrameSize === fs.key
+                          ? (resolveFrameColor(modalFrameColor).text !== "#333" ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)")
+                          : "transparent",
+                        color: modalFrameSize === fs.key
+                          ? (resolveFrameColor(modalFrameColor).text)
+                          : (resolveFrameColor(modalFrameColor).text !== "#333" ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)"),
+                        cursor: "pointer",
+                        transition: "all 150ms ease",
+                      }}
+                    >
+                      {fs.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <p
                 style={{
                   fontFamily: "var(--font-patrick-hand), 'Patrick Hand', sans-serif",
-                  fontSize: 22,
-                  color: "#333",
+                  fontSize: 18,
+                  color: resolveFrameColor(modalFrameColor).text,
                   textAlign: "center",
-                  marginTop: 18,
-                  marginBottom: 16,
+                  margin: "4px 0 16px",
+                  opacity: 0.6,
                 }}
               >
                 {dateLabel(open.date)}
@@ -987,7 +1313,7 @@ export default function FridgePage() {
                 <p
                   style={{
                     fontSize: 11,
-                    color: "rgba(0,0,0,0.55)",
+                    color: resolveFrameColor(modalFrameColor).text !== "#333" ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.55)",
                     textTransform: "uppercase",
                     letterSpacing: "0.08em",
                     marginBottom: 8,
@@ -1015,11 +1341,11 @@ export default function FridgePage() {
                           borderRadius: 999,
                           fontSize: 11,
                           cursor: isCurrent ? "default" : "pointer",
-                          background: isCurrent ? "#0a0a0a" : "transparent",
-                          color: isCurrent ? "#fff" : "rgba(0,0,0,0.7)",
+                          background: isCurrent ? (modalFrameColor === "black" ? "#fff" : "#0a0a0a") : "transparent",
+                          color: isCurrent ? (modalFrameColor === "black" ? "#1a1a1a" : "#fff") : (resolveFrameColor(modalFrameColor).text !== "#333" ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.7)"),
                           border: isCurrent
-                            ? "1px solid #0a0a0a"
-                            : "1px solid rgba(0,0,0,0.18)",
+                            ? `1px solid ${modalFrameColor === "black" ? "#fff" : "#0a0a0a"}`
+                            : `1px solid ${resolveFrameColor(modalFrameColor).text !== "#333" ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.18)"}`,
                           opacity: isCurrent ? 1 : 0.85,
                           transition: "background 150ms, color 150ms, border-color 150ms",
                         }}
@@ -1031,27 +1357,49 @@ export default function FridgePage() {
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+              <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
                 <button
-                  onClick={() => handleDelete(open.id)}
+                  onClick={() => handleDownloadMemory(open)}
                   style={{
-                    border: "1px solid rgba(0,0,0,0.15)",
+                    border: `1px solid ${resolveFrameColor(modalFrameColor).text !== "#333" ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.15)"}`,
                     background: "transparent",
-                    color: "#a33",
+                    color: resolveFrameColor(modalFrameColor).text,
+                    padding: "8px 16px",
+                    borderRadius: 999,
+                    fontSize: 13,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  Download
+                </button>
+                <button
+                  onClick={() => { if (window.confirm("Remove this memory? This can't be undone.")) handleDelete(open.id); }}
+                  style={{
+                    border: `1px solid ${resolveFrameColor(modalFrameColor).text !== "#333" ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.15)"}`,
+                    background: "transparent",
+                    color: modalFrameColor === "black" ? "#f88" : "#a33",
                     padding: "8px 16px",
                     borderRadius: 999,
                     fontSize: 13,
                     cursor: "pointer",
                   }}
                 >
-                  Remove memory
+                  Remove
                 </button>
                 <button
-                  onClick={() => setOpen(null)}
+                  onClick={() => { setOpen(null); setCaptionEditing(false); }}
                   style={{
-                    border: "1px solid rgba(0,0,0,0.15)",
-                    background: "#0a0a0a",
-                    color: "#fff",
+                    border: `1px solid ${resolveFrameColor(modalFrameColor).text !== "#333" ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.15)"}`,
+                    background: modalFrameColor === "black" ? "#fff" : "#0a0a0a",
+                    color: modalFrameColor === "black" ? "#1a1a1a" : "#fff",
                     padding: "8px 18px",
                     borderRadius: 999,
                     fontSize: 13,

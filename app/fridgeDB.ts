@@ -12,6 +12,11 @@ export type FridgeMemory = {
   image: string; // data URL
   date: string; // ISO
   caption?: string;
+  captionColor?: string;
+  captionFont?: string;
+  captionSize?: string;
+  frameColor?: string;
+  frameSize?: string;
   x: number; // px from container left
   y: number; // px from container top
   rotate: number; // degrees

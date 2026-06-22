@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import { Patrick_Hand } from "next/font/google";
+import { Geist, Geist_Mono, Patrick_Hand, Caveat, Permanent_Marker, Indie_Flower, Shadows_Into_Light, Satisfy } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -16,6 +15,35 @@ const geistMono = Geist_Mono({
 const patrickHand = Patrick_Hand({
   weight: "400",
   variable: "--font-patrick-hand",
+  subsets: ["latin"],
+});
+
+const caveat = Caveat({
+  variable: "--font-caveat",
+  subsets: ["latin"],
+});
+
+const permanentMarker = Permanent_Marker({
+  weight: "400",
+  variable: "--font-permanent-marker",
+  subsets: ["latin"],
+});
+
+const indieFlower = Indie_Flower({
+  weight: "400",
+  variable: "--font-indie-flower",
+  subsets: ["latin"],
+});
+
+const shadowsIntoLight = Shadows_Into_Light({
+  weight: "400",
+  variable: "--font-shadows",
+  subsets: ["latin"],
+});
+
+const satisfy = Satisfy({
+  weight: "400",
+  variable: "--font-satisfy",
   subsets: ["latin"],
 });
 
@@ -39,7 +67,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${patrickHand.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${patrickHand.variable} ${caveat.variable} ${permanentMarker.variable} ${indieFlower.variable} ${shadowsIntoLight.variable} ${satisfy.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>{children}</body>
     </html>
