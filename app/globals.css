@@ -116,7 +116,6 @@ video {
   object-fit: cover;
   display: block;
   border-radius: inherit;
-  filter: brightness(0.5) saturate(0.75) contrast(0.95);
 }
 .scene3d-fade {
   position: absolute;
@@ -147,12 +146,17 @@ video {
   /* Hide the playful "your snaps land here" arrow on phones — navbar is too tight */
   .navbar-hint { display: none !important; }
 
-  /* Smaller heading on mobile */
+  /* Smaller heading on mobile, shifted up */
+  .hero-text { margin-top: -40px !important; }
   .hero-heading { font-size: 36px !important; line-height: 40px !important; letter-spacing: -1.2px !important; }
   .hero-subheading { font-size: 14px !important; line-height: 22px !important; }
+  .hero-cta { margin-top: 60px !important; }
 
   /* Camera ring backdrop — slow it down, less aggressive perspective so cards don't crowd */
   .framer-3dscene { perspective: 36em !important; }
+
+  /* Profile card — stack vertically on phones */
+  .fridge-hero { flex-direction: column !important; gap: 20px !important; }
 
   /* Fridge page — shorter board, padding tightens */
   .fridge-board { height: 520px !important; }
@@ -185,4 +189,30 @@ video {
   .fridge-card { width: 130px !important; }
 }
 
-
+/* ============================================================
+   LIGHT THEME
+   ============================================================ */
+.theme-light {
+  background: #f5f0eb !important;
+  color: #1a1a1a !important;
+}
+.theme-light .navbar-root {
+  background: rgba(245,240,235,0.85) !important;
+  border-bottom-color: rgba(0,0,0,0.06) !important;
+}
+.theme-light .navbar-brand { color: #1a1a1a !important; }
+.theme-light .navbar-cta {
+  color: rgba(0,0,0,0.65) !important;
+  border-color: rgba(0,0,0,0.15) !important;
+}
+.theme-light .hero-heading { color: #1a1a1a !important; }
+.theme-light .hero-subheading { color: rgba(0,0,0,0.55) !important; }
+.theme-light .scene3d-fade {
+  background: radial-gradient(ellipse 50% 45% at 50% 50%, rgba(245,240,235,0.5) 0%, rgba(245,240,235,0.82) 55%, rgba(245,240,235,0.97) 90%) !important;
+}
+.theme-light .framer-3dscene::after {
+  background: linear-gradient(90deg, #f5f0eb 0%, transparent 20%, transparent 80%, #f5f0eb 100%) !important;
+}
+.theme-light .framer-card img {
+  filter: brightness(0.85) saturate(0.9) contrast(0.95) !important;
+}

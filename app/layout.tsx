@@ -20,8 +20,8 @@ const patrickHand = Patrick_Hand({
 });
 
 export const metadata: Metadata = {
-  title: "Oh Snap — One Last Polaroid",
-  description: "Take one last Polaroid before you go.",
+  title: "MemoryPrint — Your Polaroid Moments",
+  description: "Capture, print, and collect your Polaroid memories.",
 };
 
 export const viewport: Viewport = {

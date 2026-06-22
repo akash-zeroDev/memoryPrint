@@ -1,5 +1,12 @@
 "use client";
 
+export type CardText = {
+  id: number;
+  x: number; // % from left
+  y: number; // % from top
+  text: string;
+};
+
 export type FridgeMemory = {
   id: string;
   image: string; // data URL
@@ -9,6 +16,12 @@ export type FridgeMemory = {
   y: number; // px from container top
   rotate: number; // degrees
   fridge: number; // 0..6 — which paper preset this memory lives on
+  texts?: CardText[];
+  type?: "photo" | "note";
+  note?: string;
+  noteColor?: string;
+  stickers?: Array<{ emoji: string; x: number; y: number }>;
+  noteTexts?: Array<{ id: number; text: string; x: number; y: number; size: number; font: string }>;
 };
 
 const DB_NAME = "oh_snap_fridge";
