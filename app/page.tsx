@@ -160,7 +160,7 @@ export default function Home() {
           setIsCustomRing(true);
         }
       });
-    } catch {}
+    } catch { }
   }, []);
 
   const compositeStrip = useCallback((photos: string[]): Promise<string> => {
@@ -492,7 +492,7 @@ export default function Home() {
       link.href = canvas.toDataURL("image/png");
       link.click();
     };
-    img.onerror = () => {};
+    img.onerror = () => { };
     img.src = capturedImage;
   };
 
@@ -579,97 +579,97 @@ export default function Home() {
             )}
           </button>
           <div style={{ position: "relative" }}>
-          <button
-            onClick={() => setShowFeedback(true)}
-            style={{
-              color: lightMode ? "rgba(0,0,0,0.45)" : "rgba(255,255,255,0.55)",
-              fontSize: 13,
-              padding: "7px 14px",
-              border: lightMode ? "1px solid rgba(0,0,0,0.1)" : "1px solid rgba(255,255,255,0.12)",
-              borderRadius: 999,
-              background: "transparent",
-              cursor: "pointer",
-              transition: "color 200ms, border-color 200ms",
-            }}
-          >
-            Feedback
-          </button>
-          <Link
-            href="/fridge"
-            className="navbar-cta"
-            style={{
-              color: lightMode ? "rgba(0,0,0,0.65)" : "rgba(255,255,255,0.78)",
-              fontSize: 14,
-              padding: "8px 16px",
-              border: lightMode ? "1px solid rgba(0,0,0,0.15)" : "1px solid rgba(255,255,255,0.18)",
-              borderRadius: 999,
-              textDecoration: "none",
-              transition: "color 200ms, border-color 200ms",
-            }}
-          >
-            Your Fridge
-          </Link>
-
-          {/* Hand-drawn hint pointing at "Your Fridge" — only on landing */}
-          {stage === "landing" && (
-            <motion.div
-              className="navbar-hint"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.6, delay: 1.2 }}
+            <button
+              onClick={() => setShowFeedback(true)}
               style={{
-                position: "absolute",
-                top: "calc(100% + 4px)",
-                right: 60,
-                pointerEvents: "none",
-                display: "flex",
-                alignItems: "flex-start",
-                gap: 4,
+                color: lightMode ? "rgba(0,0,0,0.45)" : "rgba(255,255,255,0.55)",
+                fontSize: 13,
+                padding: "7px 14px",
+                border: lightMode ? "1px solid rgba(0,0,0,0.1)" : "1px solid rgba(255,255,255,0.12)",
+                borderRadius: 999,
+                background: "transparent",
+                cursor: "pointer",
+                transition: "color 200ms, border-color 200ms",
               }}
             >
-              <span
+              Feedback
+            </button>
+            <Link
+              href="/fridge"
+              className="navbar-cta"
+              style={{
+                color: lightMode ? "rgba(0,0,0,0.65)" : "rgba(255,255,255,0.78)",
+                fontSize: 14,
+                padding: "8px 16px",
+                border: lightMode ? "1px solid rgba(0,0,0,0.15)" : "1px solid rgba(255,255,255,0.18)",
+                borderRadius: 999,
+                textDecoration: "none",
+                transition: "color 200ms, border-color 200ms",
+              }}
+            >
+              Your Fridge
+            </Link>
+
+            {/* Hand-drawn hint pointing at "Your Fridge" — only on landing */}
+            {stage === "landing" && (
+              <motion.div
+                className="navbar-hint"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.6, delay: 1.2 }}
                 style={{
-                  fontFamily: "var(--font-patrick-hand), 'Patrick Hand', cursive",
-                  fontSize: 19,
-                  fontWeight: 700,
-                  color: "rgba(245, 175, 105, 0.85)",
-                  lineHeight: 1,
-                  whiteSpace: "nowrap",
-                  transform: "rotate(-6deg)",
-                  marginTop: 38,
+                  position: "absolute",
+                  top: "calc(100% + 4px)",
+                  right: 60,
+                  pointerEvents: "none",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 4,
                 }}
               >
-                your snaps land here
-              </span>
-              <svg
-                width="96"
-                height="100"
-                viewBox="0 0 96 100"
-                xmlns="http://www.w3.org/2000/svg"
-                aria-hidden
-                style={{ overflow: "visible" }}
-              >
-                <path
-                  d="M 6 92 C 14 70, 22 52, 38 32 C 54 14, 70 8, 84 4"
-                  fill="none"
-                  stroke="rgba(245, 175, 105, 0.85)"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                {/* arrowhead */}
-                <path
-                  d="M 70 0 L 86 4 L 80 18"
-                  fill="none"
-                  stroke="rgba(245, 175, 105, 0.85)"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </motion.div>
-          )}
-        </div>
+                <span
+                  style={{
+                    fontFamily: "var(--font-patrick-hand), 'Patrick Hand', cursive",
+                    fontSize: 19,
+                    fontWeight: 700,
+                    color: "rgba(245, 175, 105, 0.85)",
+                    lineHeight: 1,
+                    whiteSpace: "nowrap",
+                    transform: "rotate(-6deg)",
+                    marginTop: 38,
+                  }}
+                >
+                  your snaps land here
+                </span>
+                <svg
+                  width="96"
+                  height="100"
+                  viewBox="0 0 96 100"
+                  xmlns="http://www.w3.org/2000/svg"
+                  aria-hidden
+                  style={{ overflow: "visible" }}
+                >
+                  <path
+                    d="M 6 92 C 14 70, 22 52, 38 32 C 54 14, 70 8, 84 4"
+                    fill="none"
+                    stroke="rgba(245, 175, 105, 0.85)"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  {/* arrowhead */}
+                  <path
+                    d="M 70 0 L 86 4 L 80 18"
+                    fill="none"
+                    stroke="rgba(245, 175, 105, 0.85)"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </motion.div>
+            )}
+          </div>
         </div>
       </nav>
 
@@ -734,7 +734,30 @@ export default function Home() {
                 mixBlendMode: "screen",
               }}
             />
+            {/* Popcorn scattered at camera base — spread horizontally */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/pop_bg.png"
+              alt=""
+              aria-hidden
+              style={{
+                position: "absolute",
+                left: "50%",
+                bottom: "-40%",
+                transform: "translateX(-50%)",
+                width: "100vw",
+                maxWidth: "1600px",
+                height: "auto",
+                zIndex: 4,
+                pointerEvents: "none",
+                mixBlendMode: "screen",
+                opacity: lightMode ? 0 : 1,
+                transition: "opacity 300ms ease",
 
+                WebkitMaskImage: "radial-gradient(ellipse 90% 50% at 50% 50%, black 50%, transparent 100%)",
+                maskImage: "radial-gradient(ellipse 90% 50% at 50% 50%, black 50%, transparent 100%)",
+              }}
+            />
 
             {/* 3D rotating media ring behind camera */}
             <div className="scene3d-wrap" aria-hidden>
@@ -967,6 +990,7 @@ export default function Home() {
                   transformOrigin: "center center",
                   zIndex: 5,
                   margin: "-40px 0",
+                  overflow: "visible",
                 }}
               >
                 {/* L1: Deep soft cast shadow — projected forward on the floor */}
@@ -1028,7 +1052,8 @@ export default function Home() {
                     height: "100%",
                     objectFit: "contain",
                     position: "relative",
-                    zIndex: 3,
+                    zIndex: 30,
+
                     filter:
                       "drop-shadow(0 2px 1px rgba(0,0,0,0.7)) drop-shadow(0 8px 6px rgba(0,0,0,0.55)) drop-shadow(0 28px 18px rgba(0,0,0,0.45)) drop-shadow(0 55px 40px rgba(0,0,0,0.35))",
                   }}
@@ -1155,13 +1180,13 @@ export default function Home() {
                   </div>
                 </div>
               ) : (
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-cover"
-              />
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover"
+                />
               )}
               {/* Viewfinder corners */}
               <div className="absolute inset-4 pointer-events-none">
@@ -1426,9 +1451,9 @@ export default function Home() {
                         ...(developing
                           ? {}
                           : {
-                              filter: "blur(14px) brightness(2) saturate(0)",
-                              opacity: 0.8,
-                            }),
+                            filter: "blur(14px) brightness(2) saturate(0)",
+                            opacity: 0.8,
+                          }),
                       }}
                     />
                   </div>
@@ -1596,124 +1621,124 @@ export default function Home() {
                 </div>
               </motion.div>
             ) : (
-            <motion.div
-              className="result-polaroid"
-              drag={!captionEditing}
-              dragMomentum={true}
-              dragElastic={0.1}
-              whileDrag={{ scale: 1.05, cursor: "grabbing", rotate: 0 }}
-              style={{
-                width: "clamp(320px, 50vw, 440px)",
-                aspectRatio: frameSize === "auto" ? undefined : (FRAME_SIZES.find(f => f.key === frameSize)?.ratio ?? "27 / 24"),
-                backgroundColor: resolveFrameColor(frameColor).color,
-                borderRadius: "4px",
-                boxShadow:
-                  "rgba(0, 0, 0, 0.28) 0px 20px 45px 0px, rgba(0, 0, 0, 0.12) 0px 4px 10px 0px, inset 0 0 0 1px rgba(0, 0, 0, 0.04)",
-                padding: `1.5% 1.5% ${FRAME_SIZES.find(f => f.key === frameSize)?.bottomPad ?? "1%"} 1.5%`,
-                cursor: captionEditing ? "default" : "grab",
-                display: "flex",
-                flexDirection: "column",
-                position: "relative",
-              }}
-              initial={{ rotate: -2 }}
-              animate={{ rotate: captionEditing ? 0 : 1 }}
-              transition={captionEditing
-                ? { duration: 0.3 }
-                : { duration: 3, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" }
-              }
-              ref={cardRef}
-            >
-              <div
+              <motion.div
+                className="result-polaroid"
+                drag={!captionEditing}
+                dragMomentum={true}
+                dragElastic={0.1}
+                whileDrag={{ scale: 1.05, cursor: "grabbing", rotate: 0 }}
                 style={{
-                  backgroundColor: "rgb(8, 8, 10)",
-                  borderRadius: "1px",
-                  width: "100%",
-                  aspectRatio: frameSize === "auto" ? undefined : "5640 / 3760",
-                  overflow: "hidden",
-                }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={capturedImage!}
-                  alt="Your Polaroid"
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                  }}
-                />
-              </div>
-
-              {/* Caption area — like writing on a real Polaroid */}
-              <div
-                style={{
-                  flex: 1,
+                  width: "clamp(320px, 50vw, 440px)",
+                  aspectRatio: frameSize === "auto" ? undefined : (FRAME_SIZES.find(f => f.key === frameSize)?.ratio ?? "27 / 24"),
+                  backgroundColor: resolveFrameColor(frameColor).color,
+                  borderRadius: "4px",
+                  boxShadow:
+                    "rgba(0, 0, 0, 0.28) 0px 20px 45px 0px, rgba(0, 0, 0, 0.12) 0px 4px 10px 0px, inset 0 0 0 1px rgba(0, 0, 0, 0.04)",
+                  padding: `1.5% 1.5% ${FRAME_SIZES.find(f => f.key === frameSize)?.bottomPad ?? "1%"} 1.5%`,
+                  cursor: captionEditing ? "default" : "grab",
                   display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: "4px 8px",
-                  cursor: "text",
-                  minHeight: 36,
+                  flexDirection: "column",
+                  position: "relative",
                 }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setCaptionEditing(true);
-                }}
+                initial={{ rotate: -2 }}
+                animate={{ rotate: captionEditing ? 0 : 1 }}
+                transition={captionEditing
+                  ? { duration: 0.3 }
+                  : { duration: 3, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" }
+                }
+                ref={cardRef}
               >
-                {(() => {
-                  const isDark = resolveFrameColor(frameColor).text !== "#333";
-                  const hintColor = isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.2)";
-                  const dashColor = isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)";
-                  return captionEditing ? (
-                  <input
-                    autoFocus
-                    value={caption}
-                    onChange={(e) => setCaption(e.target.value)}
-                    onBlur={() => setCaptionEditing(false)}
-                    onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-                    maxLength={40}
-                    placeholder="write a caption..."
+                <div
+                  style={{
+                    backgroundColor: "rgb(8, 8, 10)",
+                    borderRadius: "1px",
+                    width: "100%",
+                    aspectRatio: frameSize === "auto" ? undefined : "5640 / 3760",
+                    overflow: "hidden",
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={capturedImage!}
+                    alt="Your Polaroid"
                     style={{
-                      fontFamily: FONT_OPTIONS.find(f => f.key === captionFont)?.css,
-                      fontSize: SIZE_OPTIONS.find(s => s.key === captionSize)?.px ?? 22,
-                      color: captionColor,
-                      background: "transparent",
-                      border: "none",
-                      borderBottom: `1.5px dashed ${dashColor}`,
-                      outline: "none",
-                      textAlign: "center",
+                      display: "block",
                       width: "100%",
-                      padding: "2px 4px",
+                      height: "100%",
+                      objectFit: "cover",
                     }}
                   />
-                ) : (
-                  <span
-                    style={{
-                      fontFamily: FONT_OPTIONS.find(f => f.key === captionFont)?.css,
-                      fontSize: SIZE_OPTIONS.find(s => s.key === captionSize)?.px ?? 22,
-                      color: caption ? captionColor : hintColor,
-                      textAlign: "center",
-                      width: "100%",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 6,
-                      minHeight: 28,
-                    }}
-                  >
-                    {!caption && (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
-                        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                        <path d="m15 5 4 4" />
-                      </svg>
-                    )}
-                    {caption || "write a caption..."}
-                  </span>
-                );
-                })()}
-              </div>
-            </motion.div>
+                </div>
+
+                {/* Caption area — like writing on a real Polaroid */}
+                <div
+                  style={{
+                    flex: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "4px 8px",
+                    cursor: "text",
+                    minHeight: 36,
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCaptionEditing(true);
+                  }}
+                >
+                  {(() => {
+                    const isDark = resolveFrameColor(frameColor).text !== "#333";
+                    const hintColor = isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.2)";
+                    const dashColor = isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)";
+                    return captionEditing ? (
+                      <input
+                        autoFocus
+                        value={caption}
+                        onChange={(e) => setCaption(e.target.value)}
+                        onBlur={() => setCaptionEditing(false)}
+                        onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                        maxLength={40}
+                        placeholder="write a caption..."
+                        style={{
+                          fontFamily: FONT_OPTIONS.find(f => f.key === captionFont)?.css,
+                          fontSize: SIZE_OPTIONS.find(s => s.key === captionSize)?.px ?? 22,
+                          color: captionColor,
+                          background: "transparent",
+                          border: "none",
+                          borderBottom: `1.5px dashed ${dashColor}`,
+                          outline: "none",
+                          textAlign: "center",
+                          width: "100%",
+                          padding: "2px 4px",
+                        }}
+                      />
+                    ) : (
+                      <span
+                        style={{
+                          fontFamily: FONT_OPTIONS.find(f => f.key === captionFont)?.css,
+                          fontSize: SIZE_OPTIONS.find(s => s.key === captionSize)?.px ?? 22,
+                          color: caption ? captionColor : hintColor,
+                          textAlign: "center",
+                          width: "100%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 6,
+                          minHeight: 28,
+                        }}
+                      >
+                        {!caption && (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
+                            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                            <path d="m15 5 4 4" />
+                          </svg>
+                        )}
+                        {caption || "write a caption..."}
+                      </span>
+                    );
+                  })()}
+                </div>
+              </motion.div>
             )}
 
             {/* Frame options */}
