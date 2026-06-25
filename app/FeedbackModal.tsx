@@ -60,7 +60,7 @@ export default function FeedbackModal({ open, onClose }: { open: boolean; onClos
       const prev = JSON.parse(localStorage.getItem("memoryprint_feedback") ?? "[]");
       prev.push(entry);
       localStorage.setItem("memoryprint_feedback", JSON.stringify(prev));
-    } catch {}
+    } catch { }
 
     setSubmitted(true);
   };

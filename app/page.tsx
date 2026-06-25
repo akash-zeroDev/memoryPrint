@@ -265,7 +265,7 @@ export default function Home() {
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode, width: { ideal: 1280 }, height: { ideal: 1280 } },
+        video: { facingMode: { ideal: facingMode } },
         audio: false,
       });
       streamRef.current = stream;
@@ -279,7 +279,7 @@ export default function Home() {
       } else if (name === "NotReadableError") {
         setCameraError("Camera is in use by another app. Close it and try again.");
       } else {
-        setCameraError("Could not access camera. Please try again.");
+        setCameraError(`Could not access camera: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
   }, [facingMode, stopCamera]);
@@ -743,7 +743,7 @@ export default function Home() {
               style={{
                 position: "absolute",
                 left: "50%",
-                bottom: "-40%",
+                bottom: "-35%",
                 transform: "translateX(-50%)",
                 width: "100vw",
                 maxWidth: "1600px",
@@ -890,6 +890,7 @@ export default function Home() {
                   gap: "12px",
                   zIndex: 10,
                   marginBottom: "20px",
+                  marginTop: "20px",
                 }}
               >
                 {/* Heading with subtle glow */}
@@ -1152,7 +1153,7 @@ export default function Home() {
         {stage === "camera" && (
           <motion.div
             key="camera"
-            className="flex flex-col items-center justify-center min-h-screen gap-6 px-4"
+            className="flex flex-col items-center justify-center min-h-screen gap-6 px-4 pt-24"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
@@ -1256,7 +1257,8 @@ export default function Home() {
                 onClick={() =>
                   setFacingMode((m) => (m === "user" ? "environment" : "user"))
                 }
-                className="px-4 py-2 rounded-full text-sm text-white/60 border border-white/10 hover:border-white/30 transition cursor-pointer"
+                className="flex items-center justify-center h-10 rounded-full text-sm text-white/60 border border-white/10 hover:border-white/30 transition cursor-pointer"
+                style={{ padding: "0 24px", minWidth: "80px" }}
                 disabled={boothCapturing}
               >
                 Flip
@@ -1282,7 +1284,8 @@ export default function Home() {
                   setBoothPhotos([]);
                   setStage("landing");
                 }}
-                className="px-4 py-2 rounded-full text-sm text-white/60 border border-white/10 hover:border-white/30 transition cursor-pointer"
+                className="flex items-center justify-center h-10 rounded-full text-sm text-white/60 border border-white/10 hover:border-white/30 transition cursor-pointer"
+                style={{ padding: "0 24px", minWidth: "80px" }}
               >
                 Cancel
               </button>
